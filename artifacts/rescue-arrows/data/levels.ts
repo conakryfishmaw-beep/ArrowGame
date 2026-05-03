@@ -111,7 +111,7 @@ const LV5 = lv(5, 7, 3, 3, 'bear', '#D6E4FF', [
 ]);
 
 const LV6 = lv(6, 7, 3, 3, 'bear', '#D6E4FF', [
-  mkArrow([[0, 3], [2, 3]], 'down', true),
+  mkArrow([[0, 3], [0, 5], [2, 5]], 'down', true),
   mkArrow([[1, 0], [1, 2]], 'right'),
   mkArrow([[3, 4], [3, 6]], 'right', true),
   mkArrow([[6, 2], [3, 2]], 'up'),
@@ -185,7 +185,7 @@ const LV13 = lv(13, 8, 4, 4, 'human-female', '#B7FFE4', [
 ]);
 
 const LV14 = lv(14, 8, 4, 4, 'human-female', '#B7FFE4', [
-  mkArrow([[0, 4], [2, 4]], 'down', true),
+  mkArrow([[0, 5], [2, 5]], 'down', true),
   mkArrow([[0, 0], [0, 3], [2, 3]], 'right'),
   mkArrow([[7, 2], [4, 2]], 'up'),
   mkArrow([[2, 7], [5, 7]], 'down'),
@@ -289,7 +289,7 @@ function generateLevels(from: number, to: number, gs: number, mr: number, mc: nu
     } else {
       arrows = [
         mkArrow([[3, 0], [1, 0], [1, 3]], 'right', true),
-        mkArrow([[0, 4], [1, 4]], 'down'),
+        mkArrow([[0, 5], [1, 5]], 'down'),
         mkArrow([[gs - 1, 4], [gs - 1, 6]], 'right'),
         mkArrow([[gs - 2, gs - 1], [gs - 2, gs - 3]], 'left', true),
       ];
