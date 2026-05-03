@@ -1,16 +1,22 @@
-import React, { useEffect, useLayoutEffect, useRef } from 'react';
-import { Animated, Easing, Platform, Pressable, StyleSheet } from 'react-native';
-import Svg, { Polyline, Polygon } from 'react-native-svg';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Platform, Pressable, StyleSheet, View } from 'react-native';
+import Svg, { Polyline, Polygon, Circle } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { useGame, CellPos } from '@/context/GameContext';
 
 const ND = Platform.OS !== 'web';
 
+// ms per snake step during animation
+const STEP_MS = 65;
+
 type Direction = 'up' | 'down' | 'left' | 'right';
 
 interface PathArrowProps {
   id: string;
-  cells: CellPos[];
+  path: CellPos[];
+  tailIdx: number;      // Target tail index (set by GameContext after slide)
+  headIdx: number;      // Target head index
+  bodyLen: number;
   dir: Direction;
   color: string;
   cellSize: number;
@@ -20,8 +26,8 @@ interface PathArrowProps {
   isHint: boolean;
 }
 
-function cellCenter(cell: CellPos, cs: number) {
-  return { x: cell.col * cs + cs / 2, y: cell.row * cs + cs / 2 };
+function cellCenter(c: CellPos, cs: number) {
+  return { x: c.col * cs + cs / 2, y: c.row * cs + cs / 2 };
 }
 
 function arrowheadPoints(headCell: CellPos, dir: Direction, cs: number): string {
@@ -36,55 +42,66 @@ function arrowheadPoints(headCell: CellPos, dir: Direction, cs: number): string 
   }
 }
 
+function isInGrid(c: CellPos, gs: number) {
+  return c.row >= 0 && c.row < gs && c.col >= 0 && c.col < gs;
+}
+
 export function PathArrow({
-  id, cells, dir, color, cellSize, gridPixelSize, gridSize, exiting, isHint,
+  id, path, tailIdx, headIdx, bodyLen, dir, color,
+  cellSize, gridPixelSize, gridSize, exiting, isHint,
 }: PathArrowProps) {
   const { slideArrow, removeExitedArrow } = useGame();
 
-  const translateX = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(0)).current;
+  // ── Animation state ────────────────────────────────────────────
+  // localTailRef / localHeadRef drive the visual snake position.
+  // They animate toward the target tailIdx/headIdx set by GameContext.
+  const localTailRef = useRef(tailIdx);
+  const localHeadRef = useRef(headIdx);
+  const [, forceRender] = useState(0);
+
+  const targetTailRef = useRef(tailIdx);
+  const targetHeadRef = useRef(headIdx);
+  const isExitingRef = useRef(exiting);
+  const removedRef = useRef(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    // Update targets
+    targetTailRef.current = tailIdx;
+    targetHeadRef.current = headIdx;
+    isExitingRef.current = exiting;
+
+    // Nothing to animate?
+    if (localTailRef.current >= tailIdx) return;
+
+    // If already running, let it continue toward updated target
+    if (intervalRef.current) return;
+
+    intervalRef.current = setInterval(() => {
+      if (localTailRef.current >= targetTailRef.current) {
+        clearInterval(intervalRef.current!);
+        intervalRef.current = null;
+        if (isExitingRef.current && !removedRef.current) {
+          removedRef.current = true;
+          removeExitedArrow(id);
+        }
+        return;
+      }
+      localTailRef.current += 1;
+      localHeadRef.current += 1;
+      forceRender(k => k + 1);
+    }, STEP_MS);
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [tailIdx, headIdx, exiting, id]);
+
+  // ── Hint pulse ─────────────────────────────────────────────────
   const hintOpacity = useRef(new Animated.Value(1)).current;
-  const exitingRef = useRef(false);
-
-  // FLIP animation refs: track pending delta to apply before first paint
-  const prevCellsRef = useRef<CellPos[]>(cells);
-  const pendingFlip = useRef<{ dx: number; dy: number } | null>(null);
-
-  // Compute FLIP delta during this render (cells already updated to new position)
-  if (!exiting && cells !== prevCellsRef.current) {
-    const oldHead = prevCellsRef.current[prevCellsRef.current.length - 1];
-    const newHead = cells[cells.length - 1];
-    const dx = (oldHead.col - newHead.col) * cellSize;
-    const dy = (oldHead.row - newHead.row) * cellSize;
-    if (dx !== 0 || dy !== 0) {
-      pendingFlip.current = { dx, dy };
-    }
-    prevCellsRef.current = cells;
-  }
-
-  // Apply FLIP before paint
-  useLayoutEffect(() => {
-    const flip = pendingFlip.current;
-    if (flip && !exiting) {
-      pendingFlip.current = null;
-      translateX.setValue(flip.dx);
-      translateY.setValue(flip.dy);
-      Animated.parallel([
-        Animated.timing(translateX, {
-          toValue: 0, duration: 210,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: ND,
-        }),
-        Animated.timing(translateY, {
-          toValue: 0, duration: 210,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: ND,
-        }),
-      ]).start();
-    }
-  });
-
-  // Hint pulse animation
   useEffect(() => {
     if (isHint) {
       const loop = Animated.loop(
@@ -101,45 +118,39 @@ export function PathArrow({
     }
   }, [isHint]);
 
-  // Exit animation: slide the whole arrow off screen in its direction
-  useEffect(() => {
-    if (!exiting) return;
-    exitingRef.current = true;
-    translateX.stopAnimation();
-    translateY.stopAnimation();
+  // ── Render ─────────────────────────────────────────────────────
+  const localTail = localTailRef.current;
+  const localHead = localHeadRef.current;
 
-    const minRow = Math.min(...cells.map((c) => c.row));
-    const maxRow = Math.max(...cells.map((c) => c.row));
-    const minCol = Math.min(...cells.map((c) => c.col));
-    const maxCol = Math.max(...cells.map((c) => c.col));
+  // Cells in the current body
+  const bodyCells = path.slice(localTail, localHead + 1);
+  // Only render in-grid portion
+  const renderCells = bodyCells.filter(c => isInGrid(c, gridSize));
 
-    let targetTX = 0;
-    let targetTY = 0;
-    switch (dir) {
-      case 'right': targetTX = (gridSize - minCol) * cellSize + cellSize; break;
-      case 'left':  targetTX = -(maxCol + 2) * cellSize; break;
-      case 'down':  targetTY = (gridSize - minRow) * cellSize + cellSize; break;
-      case 'up':    targetTY = -(maxRow + 2) * cellSize; break;
-    }
+  // If nothing to render (fully offscreen), show nothing
+  if (renderCells.length === 0) return null;
 
-    Animated.parallel([
-      Animated.timing(translateX, {
-        toValue: targetTX, duration: 340,
-        easing: Easing.in(Easing.quad),
-        useNativeDriver: ND,
-      }),
-      Animated.timing(translateY, {
-        toValue: targetTY, duration: 340,
-        easing: Easing.in(Easing.quad),
-        useNativeDriver: ND,
-      }),
-    ]).start(({ finished }) => {
-      if (finished) removeExitedArrow(id);
-    });
-  }, [exiting]);
+  // SVG polyline points (through in-grid cells)
+  const svgPoints = renderCells
+    .map(c => `${c.col * cellSize + cellSize / 2},${c.row * cellSize + cellSize / 2}`)
+    .join(' ');
+
+  // Arrowhead at the last in-grid cell
+  const headCell = renderCells[renderCells.length - 1];
+  const isHeadActuallyAtFront = isInGrid(path[localHead], gridSize);
+  const showArrowhead = isHeadActuallyAtFront;
+  const arrowPts = showArrowhead ? arrowheadPoints(headCell, dir, cellSize) : '';
+
+  // Touch hit area (bounding box of render cells + padding)
+  const minRow = Math.min(...renderCells.map(c => c.row));
+  const maxRow = Math.max(...renderCells.map(c => c.row));
+  const minCol = Math.min(...renderCells.map(c => c.col));
+  const maxCol = Math.max(...renderCells.map(c => c.col));
+  const pad = cellSize * 0.28;
+  const strokeWidth = Math.max(cellSize * 0.11, 3.5);
 
   const handlePress = async () => {
-    if (exitingRef.current) return;
+    if (isExitingRef.current || removedRef.current) return;
     const result = slideArrow(id);
     if (Platform.OS !== 'web') {
       if (result.exited) {
@@ -152,67 +163,61 @@ export function PathArrow({
     }
   };
 
-  // Build SVG polyline points string
-  const svgPoints = cells.map((c) => {
-    const { x, y } = cellCenter(c, cellSize);
-    return `${x},${y}`;
-  }).join(' ');
-
-  const headCell = cells[cells.length - 1];
-  const arrowPts = arrowheadPoints(headCell, dir, cellSize);
-
-  // Hit area: bounding box of the arrow cells
-  const minRow = Math.min(...cells.map((c) => c.row));
-  const maxRow = Math.max(...cells.map((c) => c.row));
-  const minCol = Math.min(...cells.map((c) => c.col));
-  const maxCol = Math.max(...cells.map((c) => c.col));
-
-  const pad = cellSize * 0.28;
-  const strokeWidth = Math.max(cellSize * 0.11, 3);
-
   return (
-    <Animated.View
+    <View
       style={[
         StyleSheet.absoluteFillObject,
         { width: gridPixelSize, height: gridPixelSize, pointerEvents: 'box-none' },
-        { transform: [{ translateX }, { translateY }] },
       ]}
     >
-      {/* SVG draw layer — non-interactive */}
+      {/* SVG draw layer */}
       <Animated.View
-        style={[StyleSheet.absoluteFillObject, { opacity: hintOpacity, pointerEvents: 'none' }]}
+        style={[
+          StyleSheet.absoluteFillObject,
+          { opacity: hintOpacity, pointerEvents: 'none' },
+        ]}
       >
-        <Svg
-          width={gridPixelSize}
-          height={gridPixelSize}
-        >
-          <Polyline
-            points={svgPoints}
-            stroke={color}
-            strokeWidth={strokeWidth}
-            fill="none"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <Polygon
-            points={arrowPts}
-            fill={color}
-            strokeLinejoin="round"
-          />
+        <Svg width={gridPixelSize} height={gridPixelSize}>
+          {renderCells.length >= 2 && (
+            <Polyline
+              points={svgPoints}
+              stroke={color}
+              strokeWidth={strokeWidth}
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
+          {renderCells.length === 1 && (
+            <Circle
+              cx={renderCells[0].col * cellSize + cellSize / 2}
+              cy={renderCells[0].row * cellSize + cellSize / 2}
+              r={strokeWidth * 0.6}
+              fill={color}
+            />
+          )}
+          {showArrowhead && arrowPts !== '' && (
+            <Polygon
+              points={arrowPts}
+              fill={color}
+            />
+          )}
         </Svg>
       </Animated.View>
 
-      {/* Pressable touch layer — on top */}
-      <Pressable
-        onPress={handlePress}
-        style={{
-          position: 'absolute',
-          left: minCol * cellSize - pad,
-          top: minRow * cellSize - pad,
-          width: (maxCol - minCol + 1) * cellSize + pad * 2,
-          height: (maxRow - minRow + 1) * cellSize + pad * 2,
-        }}
-      />
-    </Animated.View>
+      {/* Pressable touch layer */}
+      {!exiting && (
+        <Pressable
+          onPress={handlePress}
+          style={{
+            position: 'absolute',
+            left: minCol * cellSize - pad,
+            top: minRow * cellSize - pad,
+            width: (maxCol - minCol + 1) * cellSize + pad * 2,
+            height: (maxRow - minRow + 1) * cellSize + pad * 2,
+          }}
+        />
+      )}
+    </View>
   );
 }

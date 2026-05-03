@@ -80,7 +80,10 @@ export default function GameScreen() {
           <PathArrow
             key={arrow.id}
             id={arrow.id}
-            cells={arrow.cells}
+            path={arrow.path}
+            tailIdx={arrow.tailIdx}
+            headIdx={arrow.headIdx}
+            bodyLen={arrow.bodyLen}
             dir={arrow.dir}
             color={arrow.color}
             cellSize={cellSize}
