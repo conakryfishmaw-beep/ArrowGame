@@ -1,12 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Platform, Pressable, StyleSheet, View } from 'react-native';
-import Svg, { Polyline, Polygon, Circle } from 'react-native-svg';
+import { Animated, Platform, Pressable, StyleSheet, View } from 'react-native';
+import Svg, { Path, Polygon } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { useGame, CellPos } from '@/context/GameContext';
 
 const ND = Platform.OS !== 'web';
-
-// ms per snake step during animation
 const STEP_MS = 65;
 
 type Direction = 'up' | 'down' | 'left' | 'right';
@@ -14,8 +12,8 @@ type Direction = 'up' | 'down' | 'left' | 'right';
 interface PathArrowProps {
   id: string;
   path: CellPos[];
-  tailIdx: number;      // Target tail index (set by GameContext after slide)
-  headIdx: number;      // Target head index
+  tailIdx: number;
+  headIdx: number;
   bodyLen: number;
   dir: Direction;
   color: string;
@@ -30,20 +28,64 @@ function cellCenter(c: CellPos, cs: number) {
   return { x: c.col * cs + cs / 2, y: c.row * cs + cs / 2 };
 }
 
-function arrowheadPoints(headCell: CellPos, dir: Direction, cs: number): string {
+function isInGrid(c: CellPos, gs: number) {
+  return c.row >= 0 && c.row < gs && c.col >= 0 && c.col < gs;
+}
+
+/**
+ * Returns arrowhead polygon points string AND the (bx, by) back-center point
+ * where the polyline body should terminate — ensuring zero gap between body and head.
+ */
+function arrowhead(headCell: CellPos, dir: Direction, cs: number) {
   const { x, y } = cellCenter(headCell, cs);
-  const s = cs * 0.22;
-  const sw = s * 0.72;
+  const tip = cs * 0.24;   // how far the point extends from center
+  const half = cs * 0.17;  // half-width of the arrowhead base
+
   switch (dir) {
-    case 'right': return `${x + s},${y} ${x - sw},${y - sw} ${x - sw},${y + sw}`;
-    case 'left':  return `${x - s},${y} ${x + sw},${y - sw} ${x + sw},${y + sw}`;
-    case 'down':  return `${x},${y + s} ${x - sw},${y - sw} ${x + sw},${y - sw}`;
-    case 'up':    return `${x},${y - s} ${x - sw},${y + sw} ${x + sw},${y + sw}`;
+    case 'right':
+      return {
+        pts: `${x + tip},${y} ${x - half},${y - half} ${x - half},${y + half}`,
+        bx: x - half, by: y,
+      };
+    case 'left':
+      return {
+        pts: `${x - tip},${y} ${x + half},${y - half} ${x + half},${y + half}`,
+        bx: x + half, by: y,
+      };
+    case 'down':
+      return {
+        pts: `${x},${y + tip} ${x - half},${y - half} ${x + half},${y - half}`,
+        bx: x, by: y - half,
+      };
+    case 'up':
+      return {
+        pts: `${x},${y - tip} ${x - half},${y + half} ${x + half},${y + half}`,
+        bx: x, by: y + half,
+      };
   }
 }
 
-function isInGrid(c: CellPos, gs: number) {
-  return c.row >= 0 && c.row < gs && c.col >= 0 && c.col < gs;
+/**
+ * Build a single SVG Path `d` string for the body + seamless arrowhead stub.
+ * The body polyline ends exactly at the arrowhead's back-center (bx, by),
+ * so the filled Polygon arrowhead seats flush against it with no gap.
+ */
+function buildBodyPath(renderCells: CellPos[], headCell: CellPos, dir: Direction, cs: number): string {
+  const { bx, by } = arrowhead(headCell, dir, cs);
+
+  if (renderCells.length === 0) return '';
+
+  const pts = renderCells.map(c => {
+    const { x, y } = cellCenter(c, cs);
+    return { x, y };
+  });
+
+  // Replace the last point with the arrowhead back-center so the stroke meets the polygon flush
+  pts[pts.length - 1] = { x: bx, y: by };
+
+  const [first, ...rest] = pts;
+  const d = `M ${first.x} ${first.y}` + rest.map(p => ` L ${p.x} ${p.y}`).join('');
+  return d;
 }
 
 export function PathArrow({
@@ -52,9 +94,7 @@ export function PathArrow({
 }: PathArrowProps) {
   const { slideArrow, removeExitedArrow } = useGame();
 
-  // ── Animation state ────────────────────────────────────────────
-  // localTailRef / localHeadRef drive the visual snake position.
-  // They animate toward the target tailIdx/headIdx set by GameContext.
+  // ── Animation state ───────────────────────────────────────────
   const localTailRef = useRef(tailIdx);
   const localHeadRef = useRef(headIdx);
   const [, forceRender] = useState(0);
@@ -66,16 +106,12 @@ export function PathArrow({
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    // Update targets
     targetTailRef.current = tailIdx;
     targetHeadRef.current = headIdx;
     isExitingRef.current = exiting;
 
-    // Nothing to animate?
     if (localTailRef.current >= tailIdx) return;
-
-    // If already running, let it continue toward updated target
-    if (intervalRef.current) return;
+    if (intervalRef.current) return; // already stepping toward target
 
     intervalRef.current = setInterval(() => {
       if (localTailRef.current >= targetTailRef.current) {
@@ -100,7 +136,7 @@ export function PathArrow({
     };
   }, [tailIdx, headIdx, exiting, id]);
 
-  // ── Hint pulse ─────────────────────────────────────────────────
+  // ── Hint pulse ────────────────────────────────────────────────
   const hintOpacity = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     if (isHint) {
@@ -118,48 +154,39 @@ export function PathArrow({
     }
   }, [isHint]);
 
-  // ── Render ─────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────
   const localTail = localTailRef.current;
   const localHead = localHeadRef.current;
 
-  // Cells in the current body
   const bodyCells = path.slice(localTail, localHead + 1);
-  // Only render in-grid portion
   const renderCells = bodyCells.filter(c => isInGrid(c, gridSize));
 
-  // If nothing to render (fully offscreen), show nothing
   if (renderCells.length === 0) return null;
 
-  // SVG polyline points (through in-grid cells)
-  const svgPoints = renderCells
-    .map(c => `${c.col * cellSize + cellSize / 2},${c.row * cellSize + cellSize / 2}`)
-    .join(' ');
-
-  // Arrowhead at the last in-grid cell
   const headCell = renderCells[renderCells.length - 1];
-  const isHeadActuallyAtFront = isInGrid(path[localHead], gridSize);
-  const showArrowhead = isHeadActuallyAtFront;
-  const arrowPts = showArrowhead ? arrowheadPoints(headCell, dir, cellSize) : '';
+  const isHeadOnScreen = isInGrid(path[localHead], gridSize);
 
-  // Touch hit area (bounding box of render cells + padding)
+  const { pts: arrowPts } = arrowhead(headCell, dir, cellSize);
+
+  // Unified body path — ends flush at arrowhead back-center
+  const bodyPathD = buildBodyPath(renderCells, headCell, dir, cellSize);
+
+  const sw = Math.max(cellSize * 0.11, 3.5);
+
+  // Hit-area bounding box
   const minRow = Math.min(...renderCells.map(c => c.row));
   const maxRow = Math.max(...renderCells.map(c => c.row));
   const minCol = Math.min(...renderCells.map(c => c.col));
   const maxCol = Math.max(...renderCells.map(c => c.col));
   const pad = cellSize * 0.28;
-  const strokeWidth = Math.max(cellSize * 0.11, 3.5);
 
   const handlePress = async () => {
     if (isExitingRef.current || removedRef.current) return;
     const result = slideArrow(id);
     if (Platform.OS !== 'web') {
-      if (result.exited) {
-        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      } else if (result.moved) {
-        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      } else {
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      }
+      if (result.exited) await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      else if (result.moved) await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      else await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     }
   };
 
@@ -170,7 +197,6 @@ export function PathArrow({
         { width: gridPixelSize, height: gridPixelSize, pointerEvents: 'box-none' },
       ]}
     >
-      {/* SVG draw layer */}
       <Animated.View
         style={[
           StyleSheet.absoluteFillObject,
@@ -178,25 +204,19 @@ export function PathArrow({
         ]}
       >
         <Svg width={gridPixelSize} height={gridPixelSize}>
-          {renderCells.length >= 2 && (
-            <Polyline
-              points={svgPoints}
+          {/* Body: single SVG Path, ends exactly at arrowhead back-center */}
+          {bodyPathD !== '' && (
+            <Path
+              d={bodyPathD}
               stroke={color}
-              strokeWidth={strokeWidth}
+              strokeWidth={sw}
               fill="none"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
           )}
-          {renderCells.length === 1 && (
-            <Circle
-              cx={renderCells[0].col * cellSize + cellSize / 2}
-              cy={renderCells[0].row * cellSize + cellSize / 2}
-              r={strokeWidth * 0.6}
-              fill={color}
-            />
-          )}
-          {showArrowhead && arrowPts !== '' && (
+          {/* Arrowhead: filled polygon, base flush against body endpoint */}
+          {isHeadOnScreen && (
             <Polygon
               points={arrowPts}
               fill={color}
@@ -205,7 +225,6 @@ export function PathArrow({
         </Svg>
       </Animated.View>
 
-      {/* Pressable touch layer */}
       {!exiting && (
         <Pressable
           onPress={handlePress}
