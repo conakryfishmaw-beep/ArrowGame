@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Dimensions, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -6,6 +6,8 @@ import { useGame } from '@/context/GameContext';
 import { PathArrow } from '@/components/PathArrow';
 import { MascotCell } from '@/components/MascotCell';
 import { LevelCompleteOverlay } from '@/components/LevelCompleteOverlay';
+import { HintModal } from '@/components/HintModal';
+import { AdBanner, BANNER_HEIGHT } from '@/components/AdBanner';
 
 const SCREEN_W = Dimensions.get('window').width;
 const GRID_SIDE = Math.min(SCREEN_W - 32, 420);
@@ -36,22 +38,28 @@ function GridDots({ gridSize, cellSize }: { gridSize: number; cellSize: number }
 export default function GameScreen() {
   const { level, arrows, isLevelComplete, hintArrowId, restartLevel, showHint, clearHint, currentLevel } = useGame();
   const insets = useSafeAreaInsets();
+  const [hintModalVisible, setHintModalVisible] = useState(false);
 
   const cellSize = GRID_SIDE / level.gridSize;
   const gridPixelSize = cellSize * level.gridSize;
 
   const topPad = Platform.OS === 'web' ? 60 : insets.top;
+  // Reserve space for the banner + safe area bottom
   const botPad = Platform.OS === 'web' ? 28 : insets.bottom;
 
   const progressPct = `${(currentLevel / 100) * 100}%` as `${number}%`;
 
-  const handleHint = () => {
+  const handleHintPress = () => {
     clearHint();
+    setHintModalVisible(true);
+  };
+
+  const handleHintRewarded = () => {
     showHint();
   };
 
   return (
-    <View style={[styles.screen, { paddingTop: topPad, paddingBottom: botPad }]}>
+    <View style={[styles.screen, { paddingTop: topPad, paddingBottom: botPad + BANNER_HEIGHT }]}>
       {/* ── Header ─────────────────────────────── */}
       <View style={styles.header}>
         <View>
@@ -99,7 +107,7 @@ export default function GameScreen() {
 
       {/* ── Footer ────────────────────────────── */}
       <View style={styles.footer}>
-        <Pressable style={styles.hintBtn} onPress={handleHint}>
+        <Pressable style={styles.hintBtn} onPress={handleHintPress}>
           <MaterialCommunityIcons name="lightbulb-outline" size={18} color="#888888" />
           <Text style={styles.hintText}>Hint</Text>
         </Pressable>
@@ -109,6 +117,18 @@ export default function GameScreen() {
           <Text style={styles.countLabel}> left</Text>
         </View>
       </View>
+
+      {/* ── Banner Ad (anchored bottom, outside flex flow) ── */}
+      <View style={[styles.bannerWrap, { bottom: botPad }]}>
+        <AdBanner />
+      </View>
+
+      {/* ── Hint Modal ─────────────────────────── */}
+      <HintModal
+        visible={hintModalVisible}
+        onClose={() => setHintModalVisible(false)}
+        onRewarded={handleHintRewarded}
+      />
     </View>
   );
 }
@@ -173,7 +193,6 @@ const styles = StyleSheet.create({
   footer: {
     width: '100%',
     paddingHorizontal: 24,
-    paddingBottom: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -205,5 +224,10 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
     fontSize: 14,
     color: '#BBBBBB',
+  },
+  bannerWrap: {
+    width: '100%',
+    position: 'absolute',
+    bottom: 0,
   },
 });
