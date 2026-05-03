@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Platform, StyleSheet, View } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Animated, Image, ImageSourcePropType, Platform, StyleSheet, Text, View } from 'react-native';
+import { useGame } from '@/context/GameContext';
 import { Level } from '@/data/levels';
 
 const ND = Platform.OS !== 'web';
@@ -11,107 +11,74 @@ interface MascotCellProps {
   celebrating: boolean;
 }
 
-type MCIconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
-
-const FALLBACK_ICON: MCIconName = 'star-four-points';
-
-const CHARACTER_ICON_MAP: Record<string, MCIconName> = {
-  rabbit: 'rabbit',
-  cat: 'cat',
-  bear: 'teddy-bear',
-  'face-woman': 'face-woman',
-  'face-woman-outline': 'face-woman-outline',
-  'human-female': 'human-female',
-  'star-face': 'star-four-points',
-  butterfly: 'butterfly',
-  snake: 'snake',
-  'horse-variant': 'horse-variant',
-  'crystal-ball': 'crystal-ball',
-  shimmer: 'shimmer',
-  'magic-staff': 'magic-staff',
-  'sword-cross': 'sword-cross',
-  'shield-star': 'shield-star',
-  crown: 'crown',
-};
-
-// Character → warm accent color for the mascot circle
-const CHARACTER_RING_COLOR: Record<string, string> = {
-  rabbit: '#A8E6CF',
-  cat: '#FFB7C5',
-  bear: '#A8D8FF',
-  'face-woman': '#FFB7E8',
-  'human-female': '#B7FFE4',
-  snake: '#B7D4FF',
-  butterfly: '#E0B7FF',
-  'horse-variant': '#B7FFF0',
-  'crystal-ball': '#FFE4B7',
-  shimmer: '#B7FFF0',
-  'sword-cross': '#FFD700',
-  'shield-star': '#E8E8FF',
-  crown: '#FFD700',
-  'star-face': '#FFB7E8',
-};
-
 export function MascotCell({ level, cellSize, celebrating }: MascotCellProps) {
+  const { mascotHitTimestamp, currentCharacter } = useGame();
+
   const breathe = useRef(new Animated.Value(1)).current;
   const celebrateScale = useRef(new Animated.Value(1)).current;
-  const celebrateRotate = useRef(new Animated.Value(0)).current;
+  const shakeX = useRef(new Animated.Value(0)).current;
   const glowOpacity = useRef(new Animated.Value(0)).current;
+  const dangerOpacity = useRef(new Animated.Value(0)).current;
+  const prevHitTs = useRef(0);
 
+  // Breathing idle animation
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(breathe, { toValue: 1.07, duration: 1300, useNativeDriver: ND }),
-        Animated.timing(breathe, { toValue: 1, duration: 1300, useNativeDriver: ND }),
+        Animated.timing(breathe, { toValue: 1.06, duration: 1400, useNativeDriver: ND }),
+        Animated.timing(breathe, { toValue: 1, duration: 1400, useNativeDriver: ND }),
       ])
     );
     loop.start();
     return () => loop.stop();
   }, []);
 
+  // Celebrate: scale up with glow pulse
   useEffect(() => {
     if (celebrating) {
-      glowOpacity.setValue(0.7);
+      glowOpacity.setValue(0.8);
       Animated.parallel([
+        Animated.spring(celebrateScale, { toValue: 1.35, useNativeDriver: ND, tension: 60, friction: 5 }),
         Animated.loop(
           Animated.sequence([
-            Animated.timing(celebrateScale, { toValue: 1.3, duration: 180, useNativeDriver: ND }),
-            Animated.timing(celebrateScale, { toValue: 1, duration: 180, useNativeDriver: ND }),
+            Animated.timing(glowOpacity, { toValue: 1, duration: 200, useNativeDriver: ND }),
+            Animated.timing(glowOpacity, { toValue: 0.4, duration: 200, useNativeDriver: ND }),
           ]),
-          { iterations: 6 }
-        ),
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(celebrateRotate, { toValue: 1, duration: 130, useNativeDriver: ND }),
-            Animated.timing(celebrateRotate, { toValue: -1, duration: 130, useNativeDriver: ND }),
-            Animated.timing(celebrateRotate, { toValue: 0, duration: 130, useNativeDriver: ND }),
-          ]),
-          { iterations: 4 }
-        ),
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(glowOpacity, { toValue: 1, duration: 180, useNativeDriver: ND }),
-            Animated.timing(glowOpacity, { toValue: 0.4, duration: 180, useNativeDriver: ND }),
-          ]),
-          { iterations: 8 }
+          { iterations: 10 }
         ),
       ]).start();
     } else {
       celebrateScale.setValue(1);
-      celebrateRotate.setValue(0);
       glowOpacity.setValue(0);
     }
   }, [celebrating]);
 
-  const size = cellSize * 0.72;
-  const iconSize = Math.floor(size * 0.52);
-  const ringColor = CHARACTER_RING_COLOR[level.character] ?? '#A8E6CF';
-  const iconName: MCIconName = CHARACTER_ICON_MAP[level.character] ?? FALLBACK_ICON;
+  // Danger shake when an arrow tries to enter the mascot cell
+  useEffect(() => {
+    if (mascotHitTimestamp === 0 || mascotHitTimestamp === prevHitTs.current) return;
+    prevHitTs.current = mascotHitTimestamp;
 
-  const rotateDeg = celebrateRotate.interpolate({
-    inputRange: [-1, 0, 1],
-    outputRange: ['-14deg', '0deg', '14deg'],
-  });
+    dangerOpacity.setValue(1);
+    Animated.parallel([
+      Animated.sequence([
+        Animated.timing(shakeX, { toValue: -8, duration: 50, useNativeDriver: ND }),
+        Animated.timing(shakeX, { toValue: 8, duration: 50, useNativeDriver: ND }),
+        Animated.timing(shakeX, { toValue: -6, duration: 50, useNativeDriver: ND }),
+        Animated.timing(shakeX, { toValue: 6, duration: 50, useNativeDriver: ND }),
+        Animated.timing(shakeX, { toValue: -4, duration: 50, useNativeDriver: ND }),
+        Animated.timing(shakeX, { toValue: 0, duration: 50, useNativeDriver: ND }),
+      ]),
+      Animated.sequence([
+        Animated.delay(200),
+        Animated.timing(dangerOpacity, { toValue: 0, duration: 400, useNativeDriver: ND }),
+      ]),
+    ]).start();
+  }, [mascotHitTimestamp]);
+
+  const size = cellSize * 0.76;
+  const glowSize = size + 14;
+  const { glowColor } = currentCharacter;
+  const imageSource = currentCharacter.image as ImageSourcePropType;
 
   return (
     <View
@@ -125,38 +92,50 @@ export function MascotCell({ level, cellSize, celebrating }: MascotCellProps) {
         },
       ]}
     >
-      {/* Glow ring (only visible during celebration) */}
+      {/* Glow ring */}
       <Animated.View
         style={[
           styles.glow,
           {
-            width: size + 10,
-            height: size + 10,
-            borderRadius: (size + 10) / 2,
-            borderColor: ringColor,
+            width: glowSize,
+            height: glowSize,
+            borderRadius: glowSize / 2,
+            borderColor: glowColor,
+            shadowColor: glowColor,
             opacity: glowOpacity,
           },
         ]}
       />
 
-      {/* Main character circle */}
+      {/* Character photo — animated scale + shake */}
       <Animated.View
         style={[
-          styles.circle,
+          styles.photoFrame,
           {
             width: size,
             height: size,
             borderRadius: size / 2,
-            backgroundColor: ringColor,
-            borderColor: '#1A1A1A',
+            borderColor: glowColor,
             transform: [
               { scale: Animated.multiply(breathe, celebrateScale) },
-              { rotate: rotateDeg },
+              { translateX: shakeX },
             ],
           },
         ]}
       >
-        <MaterialCommunityIcons name={iconName} size={iconSize} color="#1A1A1A" />
+        <Image
+          source={imageSource}
+          style={[styles.photo, { width: size, height: size, borderRadius: size / 2 }]}
+          resizeMode="cover"
+        />
+      </Animated.View>
+
+      {/* Danger emoji overlay */}
+      <Animated.View
+        style={[styles.dangerBadge, { opacity: dangerOpacity }]}
+        pointerEvents="none"
+      >
+        <Text style={styles.dangerEmoji}>{currentCharacter.dangerEmoji}</Text>
       </Animated.View>
     </View>
   );
@@ -171,19 +150,28 @@ const styles = StyleSheet.create({
   glow: {
     position: 'absolute',
     borderWidth: 3,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
+    shadowOpacity: 0.6,
+    shadowRadius: 10,
     elevation: 4,
   },
-  circle: {
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
+  photoFrame: {
+    borderWidth: 2.5,
+    overflow: 'hidden',
     shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
+  photo: {
+    overflow: 'hidden',
+  },
+  dangerBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+  },
+  dangerEmoji: {
+    fontSize: 18,
   },
 });

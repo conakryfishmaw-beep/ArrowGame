@@ -61,15 +61,33 @@ interface Level { id, gridSize, mascotRow, mascotCol, character, characterColor,
 | File | Purpose |
 |------|---------|
 | `artifacts/rescue-arrows/data/levels.ts` | All 100 level definitions + `mkArrow` helper |
-| `artifacts/rescue-arrows/context/GameContext.tsx` | Game state, `slideArrow`, `removeExitedArrow`, hint |
+| `artifacts/rescue-arrows/data/characters.ts` | 7 character definitions (pets=blue glow, family=gold glow) |
+| `artifacts/rescue-arrows/context/GameContext.tsx` | Game state, `slideArrow`, `removeExitedArrow`, hint, `mascotHitTimestamp` |
 | `artifacts/rescue-arrows/components/PathArrow.tsx` | SVG arrow component, FLIP animation, exit slide |
-| `artifacts/rescue-arrows/components/MascotCell.tsx` | Mascot with breathing/celebration animation |
-| `artifacts/rescue-arrows/components/LevelCompleteOverlay.tsx` | Win card + confetti |
+| `artifacts/rescue-arrows/components/MascotCell.tsx` | Family/pet photo in circular frame, breathing/shake/celebrate |
+| `artifacts/rescue-arrows/components/LevelCompleteOverlay.tsx` | Win card + character rescue message + confetti |
+| `artifacts/rescue-arrows/components/HintModal.tsx` | Watch-ad-for-hint UX with progress bar |
+| `artifacts/rescue-arrows/components/AdBanner.tsx` | 50dp anchored banner placeholder |
 | `artifacts/rescue-arrows/app/index.tsx` | Main game screen |
+| `artifacts/rescue-arrows/app/album.tsx` | Family Album — 3-col grid, locked/unlocked characters |
+| `artifacts/rescue-arrows/lib/characterImages.ts` | Platform-aware image source (base64 on web, require on native) |
+| `artifacts/rescue-arrows/lib/characterImageData.ts` | Base64 JPEG data URIs for all 7 characters (~92KB) |
+| `artifacts/rescue-arrows/lib/adService.ts` | Mock rewarded ad abstraction |
+| `artifacts/rescue-arrows/assets/images/characters/` | 7 character PNG files (400×400, background-removed) |
 | `artifacts/rescue-arrows/constants/colors.ts` | Color tokens (cream palette) |
+
+### Character System
+
+- 7 characters: puppy1, cat, puppy2 (pets, blue glow #5DADE2), sister, boy_cat, boy_batman, boy_cool (family, gold glow #F4D03F)
+- Characters cycle through levels: level N → CHARACTERS[(N-1) % 7]
+- Unlocked when player completes that character's first level
+- Rescue messages in Turkish; shown on LevelCompleteOverlay
+- Family Album button in header (image-multiple-outline icon)
 
 ### Web Notes
 
 - `useNativeDriver: ND` — `ND = Platform.OS !== 'web'`; native driver unavailable on web, falls back to JS
 - `pointerEvents` on Animated.View must be in `style` (not a prop) on web
 - Fonts: `@expo-google-fonts/inter` loaded via `useFonts`; layout renders immediately without blocking on font load
+- **Image loading on web**: Expo picard proxy doesn't serve public/ static files reliably to the browser. Solution: embed images as base64 JPEG data URIs in `lib/characterImageData.ts`. On native, use `require()` as normal.
+- Character images: 400×400 PNG (assets), converted to 300×300 JPEG q75 for web (~6–14KB each, ~92KB total base64)

@@ -1,20 +1,28 @@
-import React, { useEffect, useRef } from 'react';
-import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { Animated, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useGame } from '@/context/GameContext';
 import { Confetti } from './Confetti';
 
 export function LevelCompleteOverlay() {
-  const { isLevelComplete, currentLevel, nextLevel, restartLevel } = useGame();
+  const { isLevelComplete, currentLevel, nextLevel, restartLevel, currentCharacter } = useGame();
   const scale = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
+  const photoScale = useRef(new Animated.Value(0.7)).current;
+
+  // Pick one random rescue message when the level completes
+  const rescueMessage = useMemo(() => {
+    const msgs = currentCharacter.rescueMessages;
+    return msgs[Math.floor(Math.random() * msgs.length)];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLevelComplete, currentLevel]);
 
   useEffect(() => {
     if (isLevelComplete) {
       Animated.parallel([
         Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 55, friction: 7 }),
         Animated.timing(opacity, { toValue: 1, duration: 280, useNativeDriver: true }),
+        Animated.spring(photoScale, { toValue: 1, useNativeDriver: true, tension: 50, friction: 6 }),
       ]).start();
       if (Platform.OS !== 'web') {
         setTimeout(() => {
@@ -24,38 +32,67 @@ export function LevelCompleteOverlay() {
     } else {
       scale.setValue(0);
       opacity.setValue(0);
+      photoScale.setValue(0.7);
     }
   }, [isLevelComplete]);
 
   if (!isLevelComplete) return null;
 
   const isFinal = currentLevel === 100;
+  const { glowColor, name, type } = currentCharacter;
+  const isGold = type === 'family';
 
   return (
     <>
       <Confetti active={isLevelComplete} />
       <Animated.View style={[styles.backdrop, { opacity }]}>
         <Animated.View style={[styles.card, { transform: [{ scale }] }]}>
-          <View style={styles.starRow}>
-            <MaterialCommunityIcons name="star" size={28} color="#F5C518" />
-            <MaterialCommunityIcons name="star" size={36} color="#F5C518" />
-            <MaterialCommunityIcons name="star" size={28} color="#F5C518" />
+
+          {/* Character photo — scales up on appear */}
+          <Animated.View
+            style={[
+              styles.photoWrap,
+              {
+                borderColor: glowColor,
+                shadowColor: glowColor,
+                transform: [{ scale: photoScale }],
+              },
+            ]}
+          >
+            <Image
+              source={currentCharacter.image as number | { uri: string }}
+              style={styles.photo}
+              resizeMode="cover"
+            />
+          </Animated.View>
+
+          {/* Character type badge */}
+          <View style={[styles.badge, { backgroundColor: isGold ? '#FEF9E7' : '#EBF5FB', borderColor: glowColor }]}>
+            <Text style={[styles.badgeText, { color: glowColor }]}>
+              {type === 'pet' ? '🐾 Evcil Hayvan' : '👨‍👩‍👦 Aile'}
+            </Text>
           </View>
-          <Text style={styles.title}>{isFinal ? 'All Done!' : 'Cleared!'}</Text>
+
+          {/* Rescue message */}
+          <Text style={styles.rescueMsg}>"{rescueMessage}"</Text>
+          <Text style={styles.charName}>{name}</Text>
+
+          {/* Divider */}
+          <View style={styles.divider} />
+
+          <Text style={styles.title}>{isFinal ? 'Tümünü Bitirdin!' : 'Tamamlandı!'}</Text>
           <Text style={styles.sub}>
-            {isFinal ? 'You finished all 100 levels!' : `Level ${currentLevel} complete`}
+            {isFinal ? '100 bölümü bitirdin!' : `Bölüm ${currentLevel} tamamlandı`}
           </Text>
 
           {!isFinal && (
             <Pressable style={styles.nextBtn} onPress={nextLevel}>
-              <Text style={styles.nextBtnText}>Next Level</Text>
-              <MaterialCommunityIcons name="arrow-right" size={18} color="#1A1A1A" />
+              <Text style={styles.nextBtnText}>Sonraki Bölüm →</Text>
             </Pressable>
           )}
 
           <Pressable style={styles.replayBtn} onPress={restartLevel}>
-            <MaterialCommunityIcons name="refresh" size={16} color="#888888" />
-            <Text style={styles.replayText}>Replay</Text>
+            <Text style={styles.replayText}>↺  Tekrar Oyna</Text>
           </Pressable>
         </Animated.View>
       </Animated.View>
@@ -66,42 +103,81 @@ export function LevelCompleteOverlay() {
 const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.82)',
+    backgroundColor: 'rgba(255,255,255,0.88)',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 100,
   },
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
+    borderRadius: 28,
     borderWidth: 1.5,
     borderColor: '#E8E8E8',
-    paddingVertical: 36,
-    paddingHorizontal: 40,
+    paddingVertical: 32,
+    paddingHorizontal: 36,
     alignItems: 'center',
     gap: 10,
-    minWidth: 270,
+    minWidth: 280,
+    maxWidth: 320,
     shadowColor: '#000',
     shadowOpacity: 0.10,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 12,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 14,
   },
-  starRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+  photoWrap: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    borderWidth: 3,
+    overflow: 'hidden',
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 6,
     marginBottom: 4,
+  },
+  photo: {
+    width: 96,
+    height: 96,
+  },
+  badge: {
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 3,
+  },
+  badgeText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    letterSpacing: 0.5,
+  },
+  rescueMsg: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 17,
+    color: '#1A1A1A',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  charName: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    color: '#AAAAAA',
+  },
+  divider: {
+    width: '80%',
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#E8E8E8',
+    marginVertical: 4,
   },
   title: {
     color: '#1A1A1A',
-    fontSize: 26,
+    fontSize: 22,
     fontFamily: 'Inter_700Bold',
     textAlign: 'center',
   },
   sub: {
-    color: '#888888',
-    fontSize: 15,
+    color: '#AAAAAA',
+    fontSize: 13,
     fontFamily: 'Inter_400Regular',
     textAlign: 'center',
   },
@@ -110,10 +186,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 14,
     paddingHorizontal: 36,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 14,
+    marginTop: 10,
   },
   nextBtnText: {
     color: '#FFFFFF',
@@ -121,16 +194,12 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_700Bold',
   },
   replayBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginTop: 4,
     paddingVertical: 8,
     paddingHorizontal: 14,
   },
   replayText: {
     color: '#AAAAAA',
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: 'Inter_400Regular',
   },
 });
