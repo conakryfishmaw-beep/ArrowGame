@@ -126,7 +126,7 @@ export function MascotCell({ level, cellSize, celebrating }: MascotCellProps) {
         <Image
           source={imageSource}
           style={[styles.photo, { width: size, height: size, borderRadius: size / 2 }]}
-          resizeMode="cover"
+          resizeMode="contain"
         />
       </Animated.View>
 

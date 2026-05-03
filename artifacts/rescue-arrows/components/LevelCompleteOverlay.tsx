@@ -62,7 +62,7 @@ export function LevelCompleteOverlay() {
             <Image
               source={currentCharacter.image as number | { uri: string }}
               style={styles.photo}
-              resizeMode="cover"
+              resizeMode="contain"
             />
           </Animated.View>
 

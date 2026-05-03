@@ -75,7 +75,7 @@ export default function AlbumScreen() {
                   <Image
                     source={char.image as number | { uri: string }}
                     style={styles.photo}
-                    resizeMode="cover"
+                    resizeMode="contain"
                     blurRadius={isUnlocked ? 0 : 18}
                   />
                   {!isUnlocked && (
