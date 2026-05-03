@@ -1,0 +1,8 @@
+# Files not needed in EAS build context
+node_modules
+.expo
+dist
+web-build
+.git
+.vscode
+*.log
