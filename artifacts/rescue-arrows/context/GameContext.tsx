@@ -12,6 +12,7 @@ export interface ActiveArrow {
   col: number;
   dir: 'up' | 'down' | 'left' | 'right';
   color: string;
+  exiting: boolean;
 }
 
 interface GameContextValue {
@@ -22,6 +23,7 @@ interface GameContextValue {
   isLevelComplete: boolean;
   hintArrowId: string | null;
   slideArrow: (id: string) => { newRow: number; newCol: number; exited: boolean; moved: boolean };
+  removeExitedArrow: (id: string) => void;
   restartLevel: () => void;
   nextLevel: () => void;
   goToLevel: (n: number) => void;
@@ -48,6 +50,7 @@ function buildArrows(level: Level): ActiveArrow[] {
     col: a.col,
     dir: a.dir,
     color: ARROW_COLORS[i % ARROW_COLORS.length],
+    exiting: false,
   }));
 }
 
@@ -92,11 +95,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
     setArrows((prev) => {
       const arrow = prev.find((a) => a.id === id);
-      if (!arrow) return prev;
+      if (!arrow || arrow.exiting) return prev;
 
       const mascotCells = getMascotCells(level);
       const occupied = new Set<string>(
-        prev.filter((a) => a.id !== id).map((a) => `${a.row},${a.col}`)
+        prev.filter((a) => a.id !== id && !a.exiting).map((a) => `${a.row},${a.col}`)
       );
 
       const dr = arrow.dir === 'down' ? 1 : arrow.dir === 'up' ? -1 : 0;
@@ -112,13 +115,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
         const outOfBounds = nextRow < 0 || nextRow >= level.gridSize || nextCol < 0 || nextCol >= level.gridSize;
         if (outOfBounds) {
-          result = { newRow: curRow, newCol: curCol, exited: true, moved };
-          const newArrows = prev.filter((a) => a.id !== id);
-          const complete = newArrows.length === 0;
-          if (complete) {
-            setTimeout(() => setIsLevelComplete(true), 400);
-          }
-          return newArrows;
+          // Mark as exiting — keep row/col at last valid cell, ArrowCell will animate off-screen
+          result = { newRow: curRow, newCol: curCol, exited: true, moved: true };
+          return prev.map((a) => a.id === id ? { ...a, row: curRow, col: curCol, exiting: true } : a);
         }
 
         const hitMascot = mascotCells.has(`${nextRow},${nextCol}`);
@@ -138,6 +137,20 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
     return result;
   }, [level]);
+
+  // Called by ArrowCell once its exit animation finishes
+  const removeExitedArrow = useCallback((id: string) => {
+    setArrows((prev) => {
+      const remaining = prev.filter((a) => a.id !== id);
+      const anyActive = remaining.some((a) => !a.exiting);
+      const anyExiting = remaining.some((a) => a.exiting);
+      if (!anyActive && !anyExiting) {
+        // All arrows gone — level complete
+        setTimeout(() => setIsLevelComplete(true), 120);
+      }
+      return remaining;
+    });
+  }, []);
 
   const restartLevel = useCallback(() => {
     setIsLevelComplete(false);
@@ -165,9 +178,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const showHint = useCallback(() => {
     setArrows((prev) => {
       const mascotCells = getMascotCells(level);
-      const occupied = new Set<string>(prev.map((a) => `${a.row},${a.col}`));
+      const occupied = new Set<string>(prev.filter(a => !a.exiting).map((a) => `${a.row},${a.col}`));
 
-      const removable = prev.find((arrow) => {
+      const removable = prev.filter(a => !a.exiting).find((arrow) => {
         const dr = arrow.dir === 'down' ? 1 : arrow.dir === 'up' ? -1 : 0;
         const dc = arrow.dir === 'right' ? 1 : arrow.dir === 'left' ? -1 : 0;
         let r = arrow.row;
@@ -176,9 +189,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         while (true) {
           const nr = r + dr;
           const nc = c + dc;
-          if (nr < 0 || nr >= level.gridSize || nc < 0 || nc >= level.gridSize) {
-            return true;
-          }
+          if (nr < 0 || nr >= level.gridSize || nc < 0 || nc >= level.gridSize) return true;
           if (mascotCells.has(`${nr},${nc}`)) return false;
           const key = `${nr},${nc}`;
           if (occupied.has(key) && key !== `${arrow.row},${arrow.col}`) return false;
@@ -191,7 +202,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         setHintArrowId(removable.id);
         setTimeout(() => setHintArrowId(null), 2000);
       } else {
-        const first = prev[0];
+        const first = prev.filter(a => !a.exiting)[0];
         if (first) {
           setHintArrowId(first.id);
           setTimeout(() => setHintArrowId(null), 2000);
@@ -206,7 +217,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   return (
     <GameContext.Provider value={{
       currentLevel, highestUnlocked, level, arrows, isLevelComplete,
-      hintArrowId, slideArrow, restartLevel, nextLevel, goToLevel, showHint, clearHint,
+      hintArrowId, slideArrow, removeExitedArrow, restartLevel, nextLevel, goToLevel, showHint, clearHint,
     }}>
       {children}
     </GameContext.Provider>

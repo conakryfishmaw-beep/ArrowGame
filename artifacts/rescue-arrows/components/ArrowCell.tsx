@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Platform, Pressable, StyleSheet, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useGame } from '@/context/GameContext';
 
@@ -10,7 +10,9 @@ interface ArrowCellProps {
   dir: 'up' | 'down' | 'left' | 'right';
   color: string;
   cellSize: number;
+  gridSize: number;
   isHint: boolean;
+  exiting: boolean;
 }
 
 const DIR_ROTATION: Record<string, string> = {
@@ -25,7 +27,6 @@ function ArrowShape({ size, tint }: { size: number; tint: string }) {
   const headH = size * 0.42;
   const shaftW = size * 0.30;
   const shaftH = size * 0.40;
-  const gap = size * 0.01;
 
   return (
     <View style={{ alignItems: 'center', justifyContent: 'center', height: size }}>
@@ -39,7 +40,6 @@ function ArrowShape({ size, tint }: { size: number; tint: string }) {
           borderLeftColor: 'transparent',
           borderRightColor: 'transparent',
           borderBottomColor: tint,
-          marginBottom: gap,
         }}
       />
       <View
@@ -54,15 +54,18 @@ function ArrowShape({ size, tint }: { size: number; tint: string }) {
   );
 }
 
-export function ArrowCell({ id, row, col, dir, color, cellSize, isHint }: ArrowCellProps) {
-  const { slideArrow } = useGame();
+export function ArrowCell({ id, row, col, dir, color, cellSize, gridSize, isHint, exiting }: ArrowCellProps) {
+  const { slideArrow, removeExitedArrow } = useGame();
   const translateX = useRef(new Animated.Value(col * cellSize)).current;
   const translateY = useRef(new Animated.Value(row * cellSize)).current;
   const hintAnim = useRef(new Animated.Value(1)).current;
   const pressScale = useRef(new Animated.Value(1)).current;
   const slideScale = useRef(new Animated.Value(1)).current;
+  const exitingRef = useRef(false);
 
+  // Normal position animation (move within grid)
   useEffect(() => {
+    if (exitingRef.current) return;
     Animated.parallel([
       Animated.spring(translateX, {
         toValue: col * cellSize,
@@ -83,6 +86,50 @@ export function ArrowCell({ id, row, col, dir, color, cellSize, isHint }: ArrowC
     ]).start();
   }, [row, col, cellSize]);
 
+  // Exit animation — slides arrow off the grid edge then removes it
+  useEffect(() => {
+    if (!exiting) return;
+    exitingRef.current = true;
+
+    // Stop any in-progress animations
+    translateX.stopAnimation();
+    translateY.stopAnimation();
+    slideScale.stopAnimation();
+
+    // Calculate off-screen target
+    const targetX =
+      dir === 'left' ? -cellSize * 1.5
+      : dir === 'right' ? gridSize * cellSize + cellSize * 0.5
+      : col * cellSize;
+    const targetY =
+      dir === 'up' ? -cellSize * 1.5
+      : dir === 'down' ? gridSize * cellSize + cellSize * 0.5
+      : row * cellSize;
+
+    Animated.parallel([
+      Animated.timing(translateX, {
+        toValue: targetX,
+        duration: 300,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: targetY,
+        duration: 300,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideScale, {
+        toValue: 0.6,
+        duration: 300,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      if (finished) removeExitedArrow(id);
+    });
+  }, [exiting]);
+
   useEffect(() => {
     if (isHint) {
       const loop = Animated.loop(
@@ -100,6 +147,8 @@ export function ArrowCell({ id, row, col, dir, color, cellSize, isHint }: ArrowC
   }, [isHint]);
 
   const handlePress = async () => {
+    if (exiting) return;
+
     Animated.sequence([
       Animated.timing(pressScale, { toValue: 0.78, duration: 55, useNativeDriver: true }),
       Animated.timing(pressScale, { toValue: 1.08, duration: 90, useNativeDriver: true }),

@@ -82,7 +82,9 @@ export default function GameScreen() {
             dir={arrow.dir}
             color={arrow.color}
             cellSize={cellSize}
+            gridSize={level.gridSize}
             isHint={hintArrowId === arrow.id}
+            exiting={arrow.exiting}
           />
         ))}
       </View>
@@ -94,7 +96,7 @@ export default function GameScreen() {
         </Pressable>
 
         <View style={styles.arrowCount}>
-          <Text style={styles.arrowCountText}>{arrows.length}</Text>
+          <Text style={styles.arrowCountText}>{arrows.filter(a => !a.exiting).length}</Text>
           <Text style={styles.arrowCountLabel}> arrows left</Text>
         </View>
 
@@ -162,7 +164,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     backgroundColor: '#050505',
     borderRadius: 8,
-    overflow: 'hidden',
+    overflow: 'visible',
     borderWidth: 1,
     borderColor: '#1A1A1A',
   },
