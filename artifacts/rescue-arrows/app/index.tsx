@@ -1,112 +1,111 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Dimensions, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useGame } from '@/context/GameContext';
-import { ArrowCell } from '@/components/ArrowCell';
+import { PathArrow } from '@/components/PathArrow';
 import { MascotCell } from '@/components/MascotCell';
 import { LevelCompleteOverlay } from '@/components/LevelCompleteOverlay';
 
 const SCREEN_W = Dimensions.get('window').width;
-const GRID_PADDING = 24;
+const GRID_SIDE = Math.min(SCREEN_W - 32, 420);
+
+function GridDots({ gridSize, cellSize }: { gridSize: number; cellSize: number }) {
+  const items: React.ReactElement[] = [];
+  for (let r = 0; r <= gridSize; r++) {
+    for (let c = 0; c <= gridSize; c++) {
+      items.push(
+        <View
+          key={`d${r}-${c}`}
+          style={{
+            position: 'absolute',
+            left: c * cellSize - 1.5,
+            top: r * cellSize - 1.5,
+            width: 3,
+            height: 3,
+            borderRadius: 1.5,
+            backgroundColor: '#D6D1CA',
+          }}
+        />
+      );
+    }
+  }
+  return <>{items}</>;
+}
 
 export default function GameScreen() {
-  const { level, arrows, isLevelComplete, hintArrowId, restartLevel, showHint } = useGame();
+  const { level, arrows, isLevelComplete, hintArrowId, restartLevel, showHint, clearHint, currentLevel } = useGame();
   const insets = useSafeAreaInsets();
 
-  const cellSize = useMemo(() => {
-    const available = SCREEN_W - GRID_PADDING * 2;
-    return Math.floor(available / level.gridSize);
-  }, [level.gridSize]);
+  const cellSize = GRID_SIDE / level.gridSize;
+  const gridPixelSize = cellSize * level.gridSize;
 
-  const gridSize = cellSize * level.gridSize;
+  const topPad = Platform.OS === 'web' ? 60 : insets.top;
+  const botPad = Platform.OS === 'web' ? 28 : insets.bottom;
 
-  const topPad = Platform.OS === 'web' ? 67 : insets.top;
-  const bottomPad = Platform.OS === 'web' ? 34 : insets.bottom;
+  const progressPct = `${(currentLevel / 100) * 100}%` as `${number}%`;
 
-  const characterGroup = Math.ceil(level.id / 10);
-  const characterName = [
-    'Forest Animals', 'Forest Animals', 'Chibi Anime', 'Chibi Anime', 'Chibi Anime',
-    'Mystic Creatures', 'Mystic Creatures', 'Mystic Creatures', 'Legendary Heroes', 'Final Queen',
-  ][characterGroup - 1] ?? 'Hero';
+  const handleHint = () => {
+    clearHint();
+    showHint();
+  };
 
   return (
-    <View style={[styles.screen, { paddingTop: topPad, paddingBottom: bottomPad }]}>
+    <View style={[styles.screen, { paddingTop: topPad, paddingBottom: botPad }]}>
+      {/* ── Header ─────────────────────────────── */}
       <View style={styles.header}>
-        <View style={styles.levelBadge}>
-          <Text style={styles.levelText}>Level {level.id}</Text>
-          <Text style={styles.levelTotal}>/100</Text>
+        <View>
+          <Text style={styles.levelLabel}>LEVEL</Text>
+          <Text style={styles.levelNum}>{currentLevel}</Text>
         </View>
-        <Text style={styles.characterName}>{characterName}</Text>
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${(level.id / 100) * 100}%` }]} />
+
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: progressPct }]} />
         </View>
+
+        <Pressable style={styles.restartBtn} onPress={restartLevel}>
+          <MaterialCommunityIcons name="refresh" size={20} color="#555555" />
+        </Pressable>
       </View>
 
-      <View style={[styles.gridWrapper, { width: gridSize, height: gridSize }]}>
-        {Array.from({ length: level.gridSize }).map((_, r) =>
-          Array.from({ length: level.gridSize }).map((_, c) => {
-            const isMascot =
-              r >= level.mascotRow &&
-              r < level.mascotRow + level.mascotSize &&
-              c >= level.mascotCol &&
-              c < level.mascotCol + level.mascotSize;
-            if (isMascot) return null;
-            return (
-              <View
-                key={`cell-${r}-${c}`}
-                style={[
-                  styles.cell,
-                  {
-                    width: cellSize,
-                    height: cellSize,
-                    left: c * cellSize,
-                    top: r * cellSize,
-                    borderRightWidth: c < level.gridSize - 1 ? 1 : 0,
-                    borderBottomWidth: r < level.gridSize - 1 ? 1 : 0,
-                  },
-                ]}
-              />
-            );
-          })
-        )}
+      {/* ── Grid ──────────────────────────────── */}
+      <View
+        style={[styles.grid, { width: gridPixelSize, height: gridPixelSize, pointerEvents: 'box-none' }]}
+      >
+        <GridDots gridSize={level.gridSize} cellSize={cellSize} />
 
         <MascotCell level={level} cellSize={cellSize} celebrating={isLevelComplete} />
 
         {arrows.map((arrow) => (
-          <ArrowCell
+          <PathArrow
             key={arrow.id}
             id={arrow.id}
-            row={arrow.row}
-            col={arrow.col}
+            cells={arrow.cells}
             dir={arrow.dir}
             color={arrow.color}
             cellSize={cellSize}
+            gridPixelSize={gridPixelSize}
             gridSize={level.gridSize}
-            isHint={hintArrowId === arrow.id}
             exiting={arrow.exiting}
+            isHint={hintArrowId === arrow.id}
           />
         ))}
+
+        <LevelCompleteOverlay />
       </View>
 
+      {/* ── Footer ────────────────────────────── */}
       <View style={styles.footer}>
-        <Pressable style={styles.footerBtn} onPress={restartLevel}>
-          <MaterialCommunityIcons name="refresh" size={22} color="#888888" />
-          <Text style={styles.footerBtnText}>Restart</Text>
+        <Pressable style={styles.hintBtn} onPress={handleHint}>
+          <MaterialCommunityIcons name="lightbulb-outline" size={18} color="#888888" />
+          <Text style={styles.hintText}>Hint</Text>
         </Pressable>
 
-        <View style={styles.arrowCount}>
-          <Text style={styles.arrowCountText}>{arrows.filter(a => !a.exiting).length}</Text>
-          <Text style={styles.arrowCountLabel}> arrows left</Text>
+        <View style={styles.countRow}>
+          <Text style={styles.countNum}>{arrows.filter((a) => !a.exiting).length}</Text>
+          <Text style={styles.countLabel}> left</Text>
         </View>
-
-        <Pressable style={styles.footerBtn} onPress={showHint}>
-          <MaterialCommunityIcons name="lightbulb-outline" size={22} color="#FFF3B0" />
-          <Text style={[styles.footerBtnText, { color: '#FFF3B0' }]}>Hint</Text>
-        </Pressable>
       </View>
-
-      <LevelCompleteOverlay />
     </View>
   );
 }
@@ -114,95 +113,94 @@ export default function GameScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: '#F8F5F0',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   header: {
     width: '100%',
     paddingHorizontal: 24,
-    paddingTop: 12,
-    gap: 6,
-    alignItems: 'center',
-  },
-  levelBadge: {
+    paddingTop: 8,
     flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 2,
+    alignItems: 'center',
+    gap: 14,
   },
-  levelText: {
-    color: '#FFFFFF',
-    fontSize: 26,
+  levelLabel: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 10,
+    color: '#BBBBBB',
+    letterSpacing: 2,
+  },
+  levelNum: {
     fontFamily: 'Inter_700Bold',
+    fontSize: 26,
+    color: '#1A1A1A',
+    lineHeight: 30,
   },
-  levelTotal: {
-    color: '#555555',
-    fontSize: 16,
-    fontFamily: 'Inter_400Regular',
-  },
-  characterName: {
-    color: '#888888',
-    fontSize: 13,
-    fontFamily: 'Inter_400Regular',
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-  },
-  progressBar: {
-    width: '80%',
-    height: 3,
-    backgroundColor: '#1A1A1A',
+  progressTrack: {
+    flex: 1,
+    height: 4,
+    backgroundColor: '#E8E4DF',
     borderRadius: 2,
     overflow: 'hidden',
-    marginTop: 4,
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#A8E6CF',
+    backgroundColor: '#1A1A1A',
     borderRadius: 2,
   },
-  gridWrapper: {
-    position: 'relative',
-    backgroundColor: '#050505',
-    borderRadius: 8,
-    overflow: 'visible',
-    borderWidth: 1,
-    borderColor: '#1A1A1A',
+  restartBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#EEEBE6',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  cell: {
-    position: 'absolute',
-    borderColor: '#1A1A1A',
+  grid: {
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   footer: {
     width: '100%',
     paddingHorizontal: 24,
-    paddingBottom: 16,
+    paddingBottom: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  footerBtn: {
+  hintBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    backgroundColor: '#EEEBE6',
+    borderRadius: 12,
   },
-  footerBtnText: {
-    color: '#888888',
-    fontSize: 12,
+  hintText: {
     fontFamily: 'Inter_400Regular',
+    fontSize: 14,
+    color: '#888888',
   },
-  arrowCount: {
+  countRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
   },
-  arrowCountText: {
-    color: '#FFFFFF',
-    fontSize: 24,
+  countNum: {
     fontFamily: 'Inter_700Bold',
+    fontSize: 22,
+    color: '#1A1A1A',
   },
-  arrowCountLabel: {
-    color: '#555555',
-    fontSize: 13,
+  countLabel: {
     fontFamily: 'Inter_400Regular',
+    fontSize: 14,
+    color: '#BBBBBB',
   },
 });

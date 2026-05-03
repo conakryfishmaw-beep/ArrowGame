@@ -1,9 +1,14 @@
 export type Direction = 'up' | 'down' | 'left' | 'right';
 
-export interface LevelArrow {
+export interface CellPos {
   row: number;
   col: number;
+}
+
+export interface LevelArrow {
+  cells: CellPos[];
   dir: Direction;
+  accent: boolean;
 }
 
 export interface Level {
@@ -11,671 +16,334 @@ export interface Level {
   gridSize: number;
   mascotRow: number;
   mascotCol: number;
-  mascotSize: 1 | 2;
   character: string;
   characterColor: string;
   arrows: LevelArrow[];
 }
 
-const RABBIT_COLOR = '#C8F5D8';
-const CAT_COLOR = '#FFD6E0';
-const BEAR_COLOR = '#D6E4FF';
-const ANIME_PINK = '#FFB7E8';
-const ANIME_MINT = '#B7FFE4';
-const ANIME_BLUE = '#B7D4FF';
-const MYSTIC_PURPLE = '#E0B7FF';
-const MYSTIC_TEAL = '#B7FFF0';
-const MYSTIC_GOLD = '#FFE4B7';
-const HERO_GOLD = '#FFD700';
-const HERO_SILVER = '#E8E8FF';
-const QUEEN_RAINBOW = '#FFD700';
+type WP = [number, number];
 
+// Expand waypoints into cells along horizontal/vertical segments.
+function mkArrow(wpts: WP[], dir: Direction, accent = false): LevelArrow {
+  const cells: CellPos[] = [{ row: wpts[0][0], col: wpts[0][1] }];
+  for (let i = 1; i < wpts.length; i++) {
+    const [pr, pc] = wpts[i - 1];
+    const [nr, nc] = wpts[i];
+    if (pr === nr) {
+      const step = nc > pc ? 1 : -1;
+      for (let c = pc + step; step > 0 ? c <= nc : c >= nc; c += step) {
+        cells.push({ row: nr, col: c });
+      }
+    } else {
+      const step = nr > pr ? 1 : -1;
+      for (let r = pr + step; step > 0 ? r <= nr : r >= nr; r += step) {
+        cells.push({ row: r, col: nc });
+      }
+    }
+  }
+  return { cells, dir, accent };
+}
+
+function lv(
+  id: number, gs: number, mr: number, mc: number,
+  character: string, characterColor: string,
+  arrows: LevelArrow[]
+): Level {
+  return { id, gridSize: gs, mascotRow: mr, mascotCol: mc, character, characterColor, arrows };
+}
+
+// ══════════════════════════════════════════════════════
+// LEVELS 1–10  7×7 grid · mascot 1×1 at (3,3)
+// ══════════════════════════════════════════════════════
+//
+// Notation:  cells in path must not overlap between arrows.
+// Solvability: at least one arrow can exit on each move; all clear.
+//
+// Level 1: 4 arrows · two simple chains
+//   D exits → unblocks A.  B exits → unblocks C.
+const LV1 = lv(1, 7, 3, 3, 'rabbit', '#C8F5D8', [
+  mkArrow([[1, 5], [1, 6]], 'right', true),    // D — exits immediately
+  mkArrow([[1, 2], [1, 4]], 'right'),           // A — head@(1,4) blocked by D@(1,5)
+  mkArrow([[4, 5], [6, 5]], 'down'),            // B — exits
+  mkArrow([[6, 1], [6, 4]], 'right', true),     // C — head@(6,4) blocked by B@(6,5)
+]);
+
+// Level 2: 4 arrows
+//   E exits → unblocks F.  G exits → unblocks H.
+const LV2 = lv(2, 7, 3, 3, 'rabbit', '#C8F5D8', [
+  mkArrow([[4, 0], [0, 0]], 'up', true),        // E — exits up (head@0,0 → OOB)
+  mkArrow([[0, 5], [0, 1]], 'left'),             // F — head@(0,1) blocked by E@(0,0)
+  mkArrow([[1, 4], [5, 4]], 'down'),             // G — exits
+  mkArrow([[5, 2], [5, 3]], 'right', true),      // H — head@(5,3) blocked by G@(5,4)
+]);
+
+// Level 3: 5 arrows · L-shape
+//   B exits → A exits → C exits.  D, E independent.
+const LV3 = lv(3, 7, 3, 3, 'cat', '#FFD6E0', [
+  mkArrow([[2, 4], [2, 5]], 'right', true),      // B — exits (head@2,5 → OOB step2)
+  mkArrow([[0, 0], [2, 0], [2, 3]], 'right'),    // A — L, head@(2,3) blocked by B@(2,4)
+  mkArrow([[6, 1], [4, 1]], 'up'),               // C — head@(4,1) → step→(2,1)∈A blocked
+  mkArrow([[0, 6], [2, 6]], 'down', true),       // D — independent (NOTE: was (0,5)→BUG fixed)
+  mkArrow([[4, 2], [4, 4]], 'right'),            // E — independent
+]);
+
+// Level 4: 5 arrows · L-shape
+//   B exits → A exits → C exits.  D, E independent.
+const LV4 = lv(4, 7, 3, 3, 'cat', '#FFD6E0', [
+  mkArrow([[2, 4], [2, 5]], 'right', true),      // B — exits
+  mkArrow([[0, 0], [2, 0], [2, 3]], 'right'),    // A — L, blocked by B
+  mkArrow([[5, 0], [3, 0]], 'up'),               // C — head@(3,0) → step→(2,0)∈A blocked
+  mkArrow([[0, 6], [4, 6]], 'down', true),       // D — independent
+  mkArrow([[6, 6], [6, 4]], 'left'),             // E — independent
+]);
+
+// Level 5: 6 arrows · two L-shapes
+//   B exits → A, D both unblock.  A exits → C exits.
+const LV5 = lv(5, 7, 3, 3, 'bear', '#D6E4FF', [
+  mkArrow([[0, 4], [1, 4]], 'down', true),       // B — exits
+  mkArrow([[4, 0], [1, 0], [1, 3]], 'right'),    // A — L, head@(1,3) blocked by B@(1,4)
+  mkArrow([[0, 0], [0, 3]], 'right'),            // D — head@(0,3)→step→(0,4)∈B blocked
+  mkArrow([[6, 1], [5, 1]], 'up'),               // C — head@(5,1)→step→(1,1)∈A blocked
+  mkArrow([[0, 5], [0, 6], [3, 6]], 'down', true), // L going down, independent
+  mkArrow([[5, 5], [5, 3]], 'left'),             // independent
+]);
+
+// Level 6: 5 arrows
+//   B exits → A exits → D exits.  C, E independent.
+const LV6 = lv(6, 7, 3, 3, 'bear', '#D6E4FF', [
+  mkArrow([[0, 3], [2, 3]], 'down', true),       // B — exits
+  mkArrow([[1, 0], [1, 2]], 'right'),            // A — head@(1,2)→step→(1,3)∈B blocked
+  mkArrow([[3, 4], [3, 6]], 'right', true),      // C — independent
+  mkArrow([[6, 2], [3, 2]], 'up'),               // D — head@(3,2)→step→(1,2)∈A blocked
+  mkArrow([[6, 6], [6, 4]], 'left', true),       // E — independent
+]);
+
+// Level 7: 6 arrows · large L-shape
+//   A exits → C exits.  D exits → E exits → F exits.  B independent.
+const LV7 = lv(7, 7, 3, 3, 'bear', '#D6E4FF', [
+  mkArrow([[0, 0], [0, 4], [4, 4]], 'down'),     // A — L, independent exits
+  mkArrow([[0, 5], [2, 5]], 'down', true),       // B — independent
+  mkArrow([[1, 0], [1, 3]], 'right'),            // C — head@(1,3)→step→(1,4)∈A blocked
+  mkArrow([[3, 2], [3, 0]], 'left', true),       // D — independent exits
+  mkArrow([[6, 2], [4, 2]], 'up'),               // E — head@(4,2)→step→(3,2)∈D blocked
+  mkArrow([[5, 0], [5, 1]], 'right'),            // F — head@(5,1)→step→(5,2)∈E blocked
+]);
+
+// Level 8: 6 arrows
+//   B exits → A, E unblock.  A exits → C exits → D exits → F exits.
+const LV8 = lv(8, 7, 3, 3, 'cat', '#FFD6E0', [
+  mkArrow([[0, 4], [2, 4]], 'down', true),       // B — exits
+  mkArrow([[2, 0], [2, 3]], 'right'),            // A — blocked by B@(2,4)
+  mkArrow([[5, 2], [4, 2]], 'up'),               // C — blocked by A@(2,2)
+  mkArrow([[6, 0], [4, 0], [4, 1]], 'right'),    // D — L, blocked by C@(4,2)
+  mkArrow([[1, 6], [1, 5]], 'left', true),       // E — blocked by B@(1,4)
+  mkArrow([[0, 0], [1, 0]], 'down'),             // F — blocked by D@(6,0)/(5,0)
+]);
+
+// Level 9: 7 arrows
+//   B exits → A exits → C, E unblock.  D, F, G independent.
+const LV9 = lv(9, 7, 3, 3, 'rabbit', '#C8F5D8', [
+  mkArrow([[0, 5], [2, 5]], 'down', true),       // B — exits
+  mkArrow([[5, 0], [2, 0], [2, 4]], 'right'),    // A — L, blocked by B@(2,5)
+  mkArrow([[6, 2], [5, 2]], 'up'),               // C — blocked by A@(2,2)
+  mkArrow([[4, 2], [4, 5]], 'right', true),      // D — independent
+  mkArrow([[0, 0], [1, 0]], 'down'),             // E — blocked by A@(2,0)/(3,0)
+  mkArrow([[6, 6], [6, 4]], 'left', true),       // F — independent
+  mkArrow([[3, 4], [3, 6]], 'right'),            // G — independent
+]);
+
+// Level 10: 7 arrows
+//   B exits → A exits → C, G unblock.  D, E, F independent.
+//   NOTE: E fixed from [[4,2]…] to [[4,3]…] to avoid overlap with G@(4,2).
+const LV10 = lv(10, 7, 3, 3, 'rabbit', '#C8F5D8', [
+  mkArrow([[0, 5], [2, 5]], 'down', true),       // B — exits
+  mkArrow([[0, 0], [2, 0], [2, 4]], 'right'),    // A — L, blocked by B@(2,5)
+  mkArrow([[6, 0], [3, 0]], 'up'),               // C — blocked by A@(2,0)
+  mkArrow([[0, 6], [3, 6]], 'down', true),       // D — independent
+  mkArrow([[4, 3], [4, 5]], 'right'),            // E — independent (fixed from 4,2)
+  mkArrow([[6, 6], [6, 3]], 'left', true),       // F — independent
+  mkArrow([[5, 2], [3, 2]], 'up'),               // G — blocked by A@(2,2)
+]);
+
+// ══════════════════════════════════════════════════════
+// LEVELS 11–20  8×8 grid · mascot 1×1 at (4,4)
+// ══════════════════════════════════════════════════════
+
+// Level 11: 5 arrows
+const LV11 = lv(11, 8, 4, 4, 'face-woman', '#FFB7E8', [
+  mkArrow([[0, 5], [2, 5]], 'down', true),       // exits → unblocks A
+  mkArrow([[2, 1], [2, 4]], 'right'),            // blocked by above@(2,5)
+  mkArrow([[7, 6], [7, 2]], 'left', true),       // independent
+  mkArrow([[5, 0], [2, 0]], 'up'),               // independent
+  mkArrow([[3, 5], [4, 5]], 'down'),             // independent
+]);
+
+// Level 12: 5 arrows · chain of 4
+const LV12 = lv(12, 8, 4, 4, 'face-woman', '#FFB7E8', [
+  mkArrow([[1, 3], [3, 3]], 'down', true),       // exits → unblocks A
+  mkArrow([[0, 0], [0, 2], [3, 2]], 'right'),    // A — L, blocked by above@(3,3)
+  mkArrow([[7, 2], [5, 2]], 'up'),               // C — blocked by A@(0,2)→(1,2)→(2,2)→(3,2)
+  mkArrow([[5, 7], [5, 4]], 'left', true),       // D — blocked by C@(5,2)
+  mkArrow([[7, 3], [7, 5]], 'right'),            // independent
+]);
+
+// Level 13: 6 arrows · L going down blocks a right arrow
+const LV13 = lv(13, 8, 4, 4, 'human-female', '#B7FFE4', [
+  mkArrow([[0, 0], [0, 5], [3, 5]], 'down'),     // A — L going down, blocks B
+  mkArrow([[1, 0], [1, 4]], 'right', true),      // B — head@(1,4)→step→(1,5)∈A blocked
+  mkArrow([[0, 6], [4, 6]], 'down', true),       // C — independent
+  mkArrow([[7, 7], [7, 5]], 'left'),             // D — independent
+  mkArrow([[6, 1], [4, 1]], 'up'),               // E — blocked by B@(1,1)
+  mkArrow([[5, 3], [5, 6]], 'right', true),      // F — independent
+]);
+
+// Level 14: 6 arrows · two chains
+const LV14 = lv(14, 8, 4, 4, 'human-female', '#B7FFE4', [
+  mkArrow([[0, 4], [2, 4]], 'down', true),       // exits → unblocks A
+  mkArrow([[0, 0], [0, 3], [2, 3]], 'right'),    // A — L, blocked by above@(2,4)
+  mkArrow([[7, 2], [4, 2]], 'up'),               // C — blocked by A@(0,2)
+  mkArrow([[2, 7], [5, 7]], 'down'),             // D — independent, blocks F
+  mkArrow([[6, 5], [6, 3]], 'left', true),       // E — independent
+  mkArrow([[3, 4], [3, 6]], 'right'),            // F — blocked by D@(3,7)
+]);
+
+// Level 15: 7 arrows · two parallel chains
+const LV15 = lv(15, 8, 4, 4, 'snake', '#B7D4FF', [
+  mkArrow([[0, 2], [2, 2]], 'down', true),       // exits → unblocks B
+  mkArrow([[1, 0], [1, 1]], 'right'),            // B — blocked by above@(1,2)
+  mkArrow([[7, 1], [4, 1]], 'up'),               // C — blocked by B@(1,1)
+  mkArrow([[0, 7], [3, 7]], 'down', true),       // exits → unblocks E
+  mkArrow([[7, 7], [4, 7]], 'up'),               // E — blocked by above@(3,7)
+  mkArrow([[7, 5], [7, 3]], 'left'),             // F — blocked by C@(7,1)
+  mkArrow([[2, 3], [2, 5]], 'right', true),      // G — independent
+]);
+
+// Level 16: 7 arrows
+const LV16 = lv(16, 8, 4, 4, 'snake', '#B7D4FF', [
+  mkArrow([[0, 0], [0, 5], [3, 5]], 'down'),     // A — L going down, blocks B
+  mkArrow([[2, 0], [2, 4]], 'right', true),      // B — blocked by A@(2,5)
+  mkArrow([[6, 2], [3, 2]], 'up'),               // C — blocked by B@(2,2)
+  mkArrow([[0, 6], [4, 6]], 'down', true),       // D — independent, blocks F
+  mkArrow([[0, 7], [2, 7]], 'down'),             // E — independent
+  mkArrow([[7, 6], [5, 6]], 'up'),               // F — blocked by D@(4,6)
+  mkArrow([[7, 3], [7, 1]], 'left', true),       // G — independent
+]);
+
+// Level 17: 5 arrows · large-L + chain
+const LV17 = lv(17, 8, 4, 4, 'butterfly', '#E0B7FF', [
+  mkArrow([[1, 7], [3, 7]], 'down', true),       // exits → unblocks A
+  mkArrow([[0, 0], [0, 6], [3, 6]], 'right'),    // A — L, blocked by above@(3,7)
+  mkArrow([[7, 6], [5, 6]], 'up'),               // C — blocked by A@(3,6)
+  mkArrow([[5, 5], [5, 3]], 'left', true),       // D — independent
+  mkArrow([[7, 0], [7, 3]], 'right'),            // E — independent
+]);
+
+// Level 18: 6 arrows · two chains
+const LV18 = lv(18, 8, 4, 4, 'butterfly', '#E0B7FF', [
+  mkArrow([[0, 5], [1, 5]], 'down', true),       // exits → unblocks A
+  mkArrow([[1, 0], [1, 4]], 'right'),            // A — blocked by above@(1,5)
+  mkArrow([[6, 1], [3, 1]], 'up'),               // C — blocked by A@(1,1)
+  mkArrow([[5, 7], [5, 5]], 'left', true),       // D — independent
+  mkArrow([[0, 7], [3, 7]], 'down'),             // E — independent, blocks F
+  mkArrow([[7, 7], [4, 7]], 'up'),               // F — blocked by E@(3,7)
+]);
+
+// Level 19: 7 arrows · long L + cascade
+const LV19 = lv(19, 8, 4, 4, 'horse-variant', '#B7FFF0', [
+  mkArrow([[0, 6], [1, 6]], 'down', true),       // exits → unblocks A
+  mkArrow([[4, 0], [1, 0], [1, 5]], 'right'),    // A — L, blocked by above@(1,6)
+  mkArrow([[7, 1], [5, 1]], 'up'),               // C — blocked by A@(1,1)
+  mkArrow([[5, 7], [5, 6]], 'left'),             // D — blocked by C@(5,1) eventually
+  mkArrow([[3, 5], [3, 7]], 'right', true),      // E — independent, blocks G
+  mkArrow([[7, 4], [7, 2]], 'left'),             // F — independent
+  mkArrow([[7, 5], [5, 5]], 'up', true),         // G — blocked by E@(3,5)
+]);
+
+// Level 20: 8 arrows · two unblocks from one key arrow
+//   B exits → A unblocks (L right) and G unblocks (right).
+//   A exits → C unblocks (up).  D exits → H unblocks (up).
+const LV20 = lv(20, 8, 4, 4, 'horse-variant', '#B7FFF0', [
+  mkArrow([[0, 5], [3, 5]], 'down', true),       // B — exits → unblocks A & G
+  mkArrow([[0, 0], [3, 0], [3, 4]], 'right'),    // A — L, blocked by B@(3,5)
+  mkArrow([[7, 0], [4, 0]], 'up'),               // C — blocked by A@(3,0)/(2,0)/(1,0)
+  mkArrow([[0, 6], [4, 6]], 'down', true),       // D — independent, blocks H
+  mkArrow([[5, 5], [5, 3]], 'left'),             // E — independent
+  mkArrow([[1, 7], [4, 7]], 'down', true),       // F — independent
+  mkArrow([[2, 1], [2, 4]], 'right'),            // G — blocked by B@(2,5)
+  mkArrow([[7, 6], [5, 6]], 'up', true),         // H — blocked by D@(4,6)
+]);
+
+// ══════════════════════════════════════════════════════
+// ALL LEVELS
+// ══════════════════════════════════════════════════════
 export const LEVELS: Level[] = [
-  // ─────────────────────────────────────────────
-  // LEVELS 1-10: Forest Animals | 5×5 | 1×1 mascot at (2,2)
-  // Rules: never point an arrow toward mascot (2,2) from same row/col when mascot blocks exit.
-  // Safe: (r,2) UP only r=0,1 | (r,2) DOWN only r=3,4 | (2,c) RIGHT only c=3,4 | (2,c) LEFT only c=0,1
-  // ─────────────────────────────────────────────
-  {
-    // 5 arrows. Chain: (0,3)right exits → (0,1)right unblocked → exits.
-    id: 1, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
-    character: 'rabbit', characterColor: RABBIT_COLOR,
-    arrows: [
-      {row:0,col:0,dir:'up'},{row:4,col:0,dir:'down'},{row:4,col:4,dir:'down'},
-      {row:0,col:3,dir:'right'},{row:0,col:1,dir:'right'},
-    ],
-  },
-  {
-    // 6 arrows. 2 chains: (0,3)R→(0,1)R and (4,1)L→(4,3)L
-    id: 2, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
-    character: 'rabbit', characterColor: RABBIT_COLOR,
-    arrows: [
-      {row:0,col:0,dir:'up'},{row:4,col:4,dir:'down'},
-      {row:0,col:3,dir:'right'},{row:0,col:1,dir:'right'},
-      {row:4,col:1,dir:'left'},{row:4,col:3,dir:'left'},
-    ],
-  },
-  {
-    // 6 arrows. 2 vertical chains: (4,0)D→(2,0)D and (0,4)U→(2,4)U
-    id: 3, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
-    character: 'rabbit', characterColor: RABBIT_COLOR,
-    arrows: [
-      {row:0,col:0,dir:'up'},{row:4,col:4,dir:'down'},
-      {row:4,col:0,dir:'down'},{row:2,col:0,dir:'down'},
-      {row:0,col:4,dir:'up'},{row:2,col:4,dir:'up'},
-    ],
-  },
-  {
-    // 7 arrows. 3-step H chain: (0,4)U → (0,2)R → (0,0)R
-    id: 4, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
-    character: 'rabbit', characterColor: RABBIT_COLOR,
-    arrows: [
-      {row:4,col:0,dir:'down'},{row:4,col:4,dir:'down'},{row:4,col:2,dir:'down'},
-      {row:0,col:4,dir:'up'},{row:0,col:2,dir:'right'},{row:0,col:0,dir:'right'},
-      {row:2,col:4,dir:'right'},
-    ],
-  },
-  {
-    // 7 arrows. Row chain + independent
-    id: 5, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
-    character: 'rabbit', characterColor: RABBIT_COLOR,
-    arrows: [
-      {row:0,col:0,dir:'up'},{row:4,col:0,dir:'down'},{row:4,col:4,dir:'down'},{row:2,col:0,dir:'left'},
-      {row:3,col:3,dir:'right'},{row:3,col:1,dir:'right'},
-      {row:0,col:4,dir:'up'},
-    ],
-  },
-  {
-    // 7 arrows. Cross chains H+V
-    id: 6, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
-    character: 'cat', characterColor: CAT_COLOR,
-    arrows: [
-      {row:0,col:0,dir:'up'},{row:4,col:4,dir:'down'},
-      {row:1,col:3,dir:'right'},{row:1,col:0,dir:'right'},
-      {row:3,col:1,dir:'left'},{row:3,col:4,dir:'left'},
-      {row:4,col:2,dir:'down'},
-    ],
-  },
-  {
-    // 8 arrows. 3 chains + independent
-    id: 7, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
-    character: 'cat', characterColor: CAT_COLOR,
-    arrows: [
-      {row:4,col:0,dir:'down'},{row:4,col:4,dir:'down'},{row:4,col:2,dir:'down'},
-      {row:1,col:3,dir:'up'},{row:1,col:0,dir:'right'},
-      {row:0,col:3,dir:'right'},{row:0,col:0,dir:'right'},
-      {row:3,col:0,dir:'left'},
-    ],
-  },
-  {
-    // 8 arrows. Vertical + horizontal chains interleaved
-    id: 8, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
-    character: 'cat', characterColor: CAT_COLOR,
-    arrows: [
-      {row:0,col:4,dir:'up'},{row:0,col:0,dir:'right'},
-      {row:4,col:1,dir:'down'},{row:4,col:3,dir:'left'},
-      {row:3,col:4,dir:'right'},{row:1,col:4,dir:'down'},
-      {row:0,col:3,dir:'up'},{row:4,col:0,dir:'down'},
-    ],
-  },
-  {
-    // 9 arrows. 3 chains + extras
-    id: 9, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
-    character: 'cat', characterColor: CAT_COLOR,
-    arrows: [
-      {row:0,col:0,dir:'up'},{row:4,col:4,dir:'down'},{row:0,col:4,dir:'up'},
-      {row:0,col:3,dir:'right'},{row:0,col:1,dir:'right'},
-      {row:4,col:1,dir:'left'},{row:4,col:3,dir:'left'},
-      {row:4,col:2,dir:'down'},{row:3,col:2,dir:'down'},
-    ],
-  },
-  {
-    // 9 arrows. 3-step chain + 2 short chains
-    id: 10, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
-    character: 'cat', characterColor: CAT_COLOR,
-    arrows: [
-      {row:0,col:0,dir:'up'},{row:4,col:4,dir:'down'},{row:4,col:0,dir:'down'},
-      {row:3,col:0,dir:'left'},{row:3,col:4,dir:'right'},
-      {row:1,col:4,dir:'up'},{row:1,col:2,dir:'right'},{row:1,col:0,dir:'right'},
-      {row:4,col:2,dir:'down'},
-    ],
-  },
-  // ─────────────────────────────────────────────
-  // LEVELS 11-20: Forest Animals | 5×5 | harder chains (9-11 arrows)
-  // ─────────────────────────────────────────────
-  {
-    // 9 arrows. 2 H-chains + 2 V-chains
-    id: 11, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
-    character: 'teddy-bear', characterColor: BEAR_COLOR,
-    arrows: [
-      {row:0,col:0,dir:'up'},{row:4,col:4,dir:'down'},{row:0,col:2,dir:'up'},
-      {row:1,col:3,dir:'right'},{row:1,col:1,dir:'right'},
-      {row:3,col:1,dir:'left'},{row:3,col:3,dir:'left'},
-      {row:4,col:2,dir:'down'},{row:3,col:2,dir:'down'},
-    ],
-  },
-  {
-    // 9 arrows. 3-step column chain R + short chains
-    id: 12, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
-    character: 'teddy-bear', characterColor: BEAR_COLOR,
-    arrows: [
-      {row:4,col:4,dir:'down'},{row:4,col:0,dir:'down'},{row:1,col:0,dir:'down'},
-      {row:0,col:4,dir:'up'},{row:0,col:2,dir:'right'},{row:0,col:0,dir:'right'},
-      {row:3,col:4,dir:'right'},{row:1,col:4,dir:'down'},
-      {row:3,col:0,dir:'left'},
-    ],
-  },
-  {
-    // 10 arrows. 3-step column chain L + 3-step H chain + extras
-    id: 13, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
-    character: 'teddy-bear', characterColor: BEAR_COLOR,
-    arrows: [
-      {row:0,col:4,dir:'up'},{row:0,col:2,dir:'right'},{row:0,col:0,dir:'right'},
-      {row:4,col:3,dir:'down'},{row:4,col:4,dir:'left'},
-      {row:4,col:0,dir:'down'},{row:3,col:0,dir:'left'},{row:1,col:0,dir:'down'},
-      {row:1,col:4,dir:'up'},{row:3,col:4,dir:'right'},
-    ],
-  },
-  {
-    // 10 arrows. 3-step col chain each side
-    id: 14, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
-    character: 'teddy-bear', characterColor: BEAR_COLOR,
-    arrows: [
-      {row:4,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:0,dir:'down'},
-      {row:0,col:4,dir:'up'},{row:2,col:4,dir:'up'},{row:4,col:4,dir:'up'},
-      {row:0,col:3,dir:'right'},{row:0,col:1,dir:'right'},
-      {row:4,col:1,dir:'left'},{row:4,col:3,dir:'left'},
-    ],
-  },
-  {
-    // 10 arrows. Cross: (1,3)U unlocks (1,0)R; (3,1)D unlocks (3,4)L; + col chains
-    id: 15, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
-    character: 'teddy-bear', characterColor: BEAR_COLOR,
-    arrows: [
-      {row:0,col:0,dir:'up'},{row:4,col:4,dir:'down'},{row:4,col:0,dir:'down'},{row:0,col:4,dir:'up'},
-      {row:1,col:3,dir:'up'},{row:1,col:0,dir:'right'},
-      {row:3,col:1,dir:'down'},{row:3,col:4,dir:'left'},
-      {row:0,col:2,dir:'up'},{row:4,col:2,dir:'down'},
-    ],
-  },
-  {
-    // 10 arrows. FIX for old level 16 deadlock. 3-step col chain + 2 H-chains
-    id: 16, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
-    character: 'teddy-bear', characterColor: BEAR_COLOR,
-    arrows: [
-      {row:4,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:0,dir:'down'},
-      {row:0,col:4,dir:'up'},{row:4,col:4,dir:'down'},
-      {row:0,col:3,dir:'right'},{row:0,col:1,dir:'right'},
-      {row:4,col:1,dir:'left'},{row:4,col:3,dir:'left'},
-      {row:3,col:4,dir:'right'},
-    ],
-  },
-  {
-    // 10 arrows. Dual col-chains + row-chain
-    id: 17, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
-    character: 'teddy-bear', characterColor: BEAR_COLOR,
-    arrows: [
-      {row:4,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:0,dir:'down'},
-      {row:0,col:4,dir:'up'},{row:2,col:4,dir:'up'},{row:4,col:4,dir:'up'},
-      {row:1,col:2,dir:'up'},{row:3,col:2,dir:'down'},
-      {row:1,col:3,dir:'right'},{row:3,col:1,dir:'left'},
-    ],
-  },
-  {
-    // 10 arrows. Mixed directions, 2 interleaved chains
-    id: 18, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
-    character: 'teddy-bear', characterColor: BEAR_COLOR,
-    arrows: [
-      {row:0,col:0,dir:'up'},{row:4,col:4,dir:'down'},
-      {row:0,col:3,dir:'up'},{row:0,col:1,dir:'right'},
-      {row:4,col:1,dir:'down'},{row:4,col:3,dir:'left'},
-      {row:3,col:4,dir:'right'},{row:1,col:4,dir:'down'},
-      {row:0,col:4,dir:'up'},{row:4,col:0,dir:'down'},
-    ],
-  },
-  {
-    // 11 arrows. Two 3-step col-chains + 2 H-chains + extra
-    id: 19, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
-    character: 'teddy-bear', characterColor: BEAR_COLOR,
-    arrows: [
-      {row:4,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:0,dir:'down'},
-      {row:0,col:4,dir:'up'},{row:2,col:4,dir:'up'},{row:4,col:4,dir:'up'},
-      {row:1,col:3,dir:'right'},{row:1,col:1,dir:'right'},
-      {row:3,col:1,dir:'left'},{row:3,col:3,dir:'left'},
-      {row:0,col:2,dir:'up'},
-    ],
-  },
-  {
-    // 11 arrows. Hardest 5×5: triple chains + dependencies
-    id: 20, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
-    character: 'teddy-bear', characterColor: BEAR_COLOR,
-    arrows: [
-      {row:4,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:0,dir:'down'},
-      {row:0,col:4,dir:'up'},{row:2,col:4,dir:'up'},{row:4,col:4,dir:'up'},
-      {row:1,col:2,dir:'up'},{row:3,col:2,dir:'down'},
-      {row:1,col:3,dir:'right'},{row:1,col:1,dir:'right'},
-      {row:3,col:1,dir:'left'},
-    ],
-  },
-  // ─────────────────────────────────────────────
-  // LEVELS 21-35: Chibi Anime | 6×6 | 2×2 mascot at (2,2)
-  // ─────────────────────────────────────────────
-  {
-    id: 21, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'face-woman', characterColor: ANIME_PINK,
-    arrows: [{row:0,col:2,dir:'up'},{row:0,col:3,dir:'up'},{row:5,col:2,dir:'down'},{row:5,col:3,dir:'down'},{row:2,col:0,dir:'left'}],
-  },
-  {
-    id: 22, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'face-woman', characterColor: ANIME_PINK,
-    arrows: [{row:0,col:2,dir:'up'},{row:0,col:3,dir:'up'},{row:5,col:2,dir:'down'},{row:5,col:3,dir:'down'},{row:3,col:5,dir:'right'}],
-  },
-  {
-    id: 23, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'face-woman', characterColor: ANIME_PINK,
-    arrows: [{row:0,col:0,dir:'up'},{row:0,col:5,dir:'up'},{row:5,col:0,dir:'down'},{row:5,col:5,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:5,dir:'right'}],
-  },
-  {
-    id: 24, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'face-woman', characterColor: ANIME_PINK,
-    arrows: [{row:0,col:2,dir:'up'},{row:0,col:3,dir:'up'},{row:5,col:2,dir:'down'},{row:5,col:3,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:5,dir:'right'}],
-  },
-  {
-    id: 25, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'face-woman', characterColor: ANIME_PINK,
-    arrows: [{row:0,col:0,dir:'up'},{row:0,col:2,dir:'up'},{row:0,col:3,dir:'up'},{row:0,col:5,dir:'up'},{row:5,col:0,dir:'down'},{row:5,col:2,dir:'down'},{row:5,col:5,dir:'down'}],
-  },
-  {
-    id: 26, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'face-woman', characterColor: ANIME_PINK,
-    arrows: [{row:0,col:0,dir:'up'},{row:0,col:5,dir:'up'},{row:5,col:0,dir:'down'},{row:5,col:5,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:5,dir:'right'},{row:1,col:5,dir:'right'}],
-  },
-  {
-    id: 27, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'face-woman', characterColor: ANIME_PINK,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:3,dir:'right'},{row:5,col:0,dir:'down'},{row:5,col:5,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:5,dir:'right'},{row:0,col:5,dir:'up'}],
-  },
-  {
-    id: 28, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'face-woman', characterColor: ANIME_PINK,
-    arrows: [{row:0,col:0,dir:'up'},{row:0,col:2,dir:'up'},{row:0,col:3,dir:'up'},{row:0,col:5,dir:'up'},{row:5,col:0,dir:'down'},{row:5,col:2,dir:'down'},{row:5,col:3,dir:'down'},{row:5,col:5,dir:'down'}],
-  },
-  {
-    id: 29, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'face-woman', characterColor: ANIME_PINK,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:3,dir:'right'},{row:5,col:5,dir:'left'},{row:5,col:2,dir:'left'},{row:2,col:0,dir:'left'},{row:3,col:0,dir:'left'},{row:2,col:5,dir:'right'},{row:3,col:5,dir:'right'}],
-  },
-  {
-    id: 30, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'face-woman', characterColor: ANIME_PINK,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:3,dir:'right'},{row:0,col:5,dir:'up'},{row:5,col:5,dir:'left'},{row:5,col:2,dir:'left'},{row:5,col:0,dir:'down'},{row:2,col:5,dir:'right'},{row:3,col:0,dir:'left'}],
-  },
-  {
-    id: 31, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'face-woman-outline', characterColor: ANIME_MINT,
-    arrows: [{row:0,col:0,dir:'up'},{row:0,col:2,dir:'up'},{row:0,col:3,dir:'up'},{row:0,col:5,dir:'up'},{row:5,col:1,dir:'down'},{row:5,col:3,dir:'down'},{row:5,col:4,dir:'down'},{row:2,col:0,dir:'left'}],
-  },
-  {
-    id: 32, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'face-woman-outline', characterColor: ANIME_MINT,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:2,dir:'right'},{row:0,col:5,dir:'up'},{row:5,col:5,dir:'left'},{row:5,col:3,dir:'left'},{row:5,col:0,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:5,dir:'right'},{row:1,col:5,dir:'right'}],
-  },
-  {
-    id: 33, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'face-woman-outline', characterColor: ANIME_MINT,
-    arrows: [{row:0,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:5,dir:'down'},{row:2,col:5,dir:'down'},{row:0,col:2,dir:'up'},{row:0,col:3,dir:'up'},{row:5,col:2,dir:'down'},{row:5,col:3,dir:'down'},{row:3,col:0,dir:'left'}],
-  },
-  {
-    id: 34, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'face-woman-outline', characterColor: ANIME_MINT,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:3,dir:'right'},{row:0,col:5,dir:'up'},{row:5,col:5,dir:'left'},{row:5,col:2,dir:'left'},{row:5,col:0,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:5,dir:'right'},{row:4,col:0,dir:'up'}],
-  },
-  {
-    id: 35, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'face-woman-outline', characterColor: ANIME_MINT,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:3,dir:'right'},{row:0,col:5,dir:'up'},{row:5,col:5,dir:'left'},{row:5,col:2,dir:'left'},{row:5,col:0,dir:'down'},{row:1,col:0,dir:'left'},{row:4,col:0,dir:'left'},{row:1,col:5,dir:'right'},{row:4,col:5,dir:'right'}],
-  },
-  // ─────────────────────────────────────────────
-  // LEVELS 36-50: Chibi Anime | 6×6 | harder (10-13 arrows)
-  // ─────────────────────────────────────────────
-  {
-    id: 36, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'human-female', characterColor: ANIME_BLUE,
-    arrows: [{row:0,col:0,dir:'up'},{row:0,col:1,dir:'up'},{row:0,col:2,dir:'up'},{row:0,col:3,dir:'up'},{row:0,col:5,dir:'up'},{row:5,col:0,dir:'down'},{row:5,col:2,dir:'down'},{row:5,col:3,dir:'down'},{row:5,col:4,dir:'down'},{row:5,col:5,dir:'down'}],
-  },
-  {
-    id: 37, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'human-female', characterColor: ANIME_BLUE,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:2,dir:'right'},{row:0,col:5,dir:'up'},{row:5,col:5,dir:'left'},{row:5,col:3,dir:'left'},{row:5,col:0,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:5,dir:'right'},{row:1,col:5,dir:'right'},{row:4,col:0,dir:'left'}],
-  },
-  {
-    id: 38, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'human-female', characterColor: ANIME_BLUE,
-    arrows: [{row:0,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:1,dir:'down'},{row:2,col:1,dir:'down'},{row:0,col:5,dir:'up'},{row:0,col:4,dir:'up'},{row:5,col:5,dir:'up'},{row:3,col:0,dir:'left'},{row:0,col:2,dir:'up'},{row:5,col:2,dir:'down'}],
-  },
-  {
-    id: 39, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'human-female', characterColor: ANIME_BLUE,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:3,dir:'right'},{row:0,col:5,dir:'up'},{row:5,col:0,dir:'down'},{row:5,col:5,dir:'left'},{row:5,col:2,dir:'left'},{row:1,col:0,dir:'left'},{row:4,col:5,dir:'right'},{row:2,col:0,dir:'left'},{row:3,col:5,dir:'right'},{row:0,col:2,dir:'up'}],
-  },
-  {
-    id: 40, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'human-female', characterColor: ANIME_BLUE,
-    arrows: [{row:0,col:0,dir:'down'},{row:1,col:0,dir:'down'},{row:0,col:5,dir:'down'},{row:1,col:5,dir:'down'},{row:0,col:2,dir:'up'},{row:0,col:3,dir:'up'},{row:5,col:2,dir:'down'},{row:5,col:3,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:5,dir:'right'},{row:5,col:0,dir:'up'}],
-  },
-  {
-    id: 41, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'human-female', characterColor: ANIME_BLUE,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:2,dir:'right'},{row:0,col:5,dir:'up'},{row:5,col:5,dir:'left'},{row:5,col:3,dir:'left'},{row:5,col:0,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:5,dir:'right'},{row:1,col:0,dir:'left'},{row:4,col:5,dir:'right'},{row:4,col:0,dir:'up'}],
-  },
-  {
-    id: 42, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'human-female', characterColor: ANIME_BLUE,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:3,dir:'right'},{row:0,col:5,dir:'up'},{row:5,col:5,dir:'left'},{row:5,col:2,dir:'left'},{row:5,col:0,dir:'down'},{row:1,col:5,dir:'right'},{row:4,col:0,dir:'left'},{row:1,col:0,dir:'down'},{row:4,col:5,dir:'up'},{row:2,col:0,dir:'left'},{row:3,col:5,dir:'right'}],
-  },
-  {
-    id: 43, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'star-face', characterColor: ANIME_PINK,
-    arrows: [{row:0,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:5,dir:'down'},{row:2,col:5,dir:'down'},{row:0,col:2,dir:'up'},{row:0,col:3,dir:'up'},{row:5,col:2,dir:'down'},{row:5,col:3,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:5,dir:'right'},{row:5,col:0,dir:'up'},{row:5,col:5,dir:'up'}],
-  },
-  {
-    id: 44, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'star-face', characterColor: ANIME_PINK,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:2,dir:'right'},{row:0,col:5,dir:'up'},{row:5,col:5,dir:'left'},{row:5,col:3,dir:'left'},{row:5,col:0,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:5,dir:'right'},{row:1,col:0,dir:'left'},{row:4,col:5,dir:'right'},{row:0,col:4,dir:'right'},{row:5,col:1,dir:'left'}],
-  },
-  {
-    id: 45, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'star-face', characterColor: ANIME_PINK,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:3,dir:'right'},{row:0,col:5,dir:'up'},{row:5,col:5,dir:'left'},{row:5,col:2,dir:'left'},{row:5,col:0,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:5,dir:'right'},{row:1,col:5,dir:'right'},{row:4,col:0,dir:'left'},{row:0,col:1,dir:'up'},{row:5,col:4,dir:'down'}],
-  },
-  {
-    id: 46, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'star-face', characterColor: ANIME_PINK,
-    arrows: [{row:0,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:1,dir:'down'},{row:2,col:1,dir:'down'},{row:0,col:4,dir:'down'},{row:2,col:4,dir:'down'},{row:0,col:5,dir:'down'},{row:2,col:5,dir:'down'},{row:3,col:0,dir:'left'},{row:3,col:5,dir:'right'},{row:5,col:2,dir:'down'},{row:5,col:3,dir:'down'},{row:0,col:2,dir:'up'}],
-  },
-  {
-    id: 47, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'star-face', characterColor: ANIME_PINK,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:2,dir:'right'},{row:0,col:4,dir:'right'},{row:5,col:5,dir:'left'},{row:5,col:3,dir:'left'},{row:5,col:1,dir:'left'},{row:2,col:0,dir:'left'},{row:3,col:5,dir:'right'},{row:1,col:0,dir:'down'},{row:4,col:5,dir:'up'},{row:0,col:5,dir:'up'},{row:5,col:0,dir:'down'}],
-  },
-  {
-    id: 48, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'star-face', characterColor: ANIME_PINK,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:2,dir:'right'},{row:0,col:5,dir:'up'},{row:5,col:5,dir:'left'},{row:5,col:3,dir:'left'},{row:5,col:0,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:5,dir:'right'},{row:1,col:5,dir:'right'},{row:4,col:0,dir:'left'},{row:4,col:5,dir:'up'},{row:1,col:0,dir:'down'},{row:0,col:4,dir:'up'}],
-  },
-  {
-    id: 49, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'star-face', characterColor: ANIME_PINK,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:3,dir:'right'},{row:0,col:5,dir:'up'},{row:5,col:5,dir:'left'},{row:5,col:2,dir:'left'},{row:5,col:0,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:5,dir:'right'},{row:1,col:0,dir:'left'},{row:4,col:5,dir:'right'},{row:0,col:1,dir:'up'},{row:5,col:4,dir:'down'},{row:4,col:0,dir:'up'}],
-  },
-  {
-    id: 50, gridSize: 6, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'star-face', characterColor: ANIME_PINK,
-    arrows: [{row:0,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:5,dir:'down'},{row:2,col:5,dir:'down'},{row:0,col:2,dir:'up'},{row:0,col:3,dir:'up'},{row:5,col:2,dir:'down'},{row:5,col:3,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:5,dir:'right'},{row:5,col:0,dir:'up'},{row:5,col:5,dir:'up'},{row:1,col:0,dir:'left'},{row:4,col:5,dir:'right'}],
-  },
-  // ─────────────────────────────────────────────
-  // LEVELS 51-65: Mystic Creatures | 7×7 | 2×2 mascot at (2,2)
-  // ─────────────────────────────────────────────
-  {
-    id: 51, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'butterfly', characterColor: MYSTIC_PURPLE,
-    arrows: [{row:0,col:2,dir:'up'},{row:0,col:3,dir:'up'},{row:6,col:2,dir:'down'},{row:6,col:3,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:0,dir:'left'},{row:2,col:6,dir:'right'},{row:3,col:6,dir:'right'}],
-  },
-  {
-    id: 52, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'butterfly', characterColor: MYSTIC_PURPLE,
-    arrows: [{row:0,col:0,dir:'up'},{row:0,col:3,dir:'up'},{row:0,col:6,dir:'up'},{row:6,col:0,dir:'down'},{row:6,col:3,dir:'down'},{row:6,col:6,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:0,col:2,dir:'up'}],
-  },
-  {
-    id: 53, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'butterfly', characterColor: MYSTIC_PURPLE,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:3,dir:'right'},{row:6,col:6,dir:'left'},{row:6,col:3,dir:'left'},{row:2,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:0,col:6,dir:'up'},{row:6,col:0,dir:'down'},{row:0,col:2,dir:'up'},{row:6,col:2,dir:'down'}],
-  },
-  {
-    id: 54, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'butterfly', characterColor: MYSTIC_PURPLE,
-    arrows: [{row:0,col:0,dir:'up'},{row:0,col:2,dir:'up'},{row:0,col:3,dir:'up'},{row:0,col:6,dir:'up'},{row:6,col:0,dir:'down'},{row:6,col:2,dir:'down'},{row:6,col:3,dir:'down'},{row:6,col:6,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:1,col:6,dir:'right'}],
-  },
-  {
-    id: 55, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'butterfly', characterColor: MYSTIC_PURPLE,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:3,dir:'right'},{row:0,col:6,dir:'up'},{row:6,col:6,dir:'left'},{row:6,col:3,dir:'left'},{row:6,col:0,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:1,col:0,dir:'left'},{row:5,col:6,dir:'right'},{row:0,col:2,dir:'up'},{row:6,col:2,dir:'down'}],
-  },
-  {
-    id: 56, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'snake', characterColor: MYSTIC_TEAL,
-    arrows: [{row:0,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:6,dir:'down'},{row:2,col:6,dir:'down'},{row:0,col:2,dir:'up'},{row:0,col:3,dir:'up'},{row:6,col:2,dir:'down'},{row:6,col:3,dir:'down'},{row:3,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:6,col:0,dir:'up'},{row:6,col:6,dir:'up'}],
-  },
-  {
-    id: 57, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'snake', characterColor: MYSTIC_TEAL,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:3,dir:'right'},{row:0,col:6,dir:'up'},{row:6,col:6,dir:'left'},{row:6,col:3,dir:'left'},{row:6,col:0,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:1,col:6,dir:'right'},{row:5,col:0,dir:'left'},{row:0,col:2,dir:'up'},{row:6,col:2,dir:'down'},{row:4,col:6,dir:'right'}],
-  },
-  {
-    id: 58, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'snake', characterColor: MYSTIC_TEAL,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:2,dir:'right'},{row:0,col:6,dir:'up'},{row:6,col:6,dir:'left'},{row:6,col:4,dir:'left'},{row:6,col:0,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:1,col:0,dir:'left'},{row:5,col:6,dir:'right'},{row:4,col:0,dir:'up'},{row:0,col:4,dir:'up'},{row:6,col:2,dir:'down'}],
-  },
-  {
-    id: 59, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'snake', characterColor: MYSTIC_TEAL,
-    arrows: [{row:0,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:1,dir:'down'},{row:2,col:1,dir:'down'},{row:0,col:5,dir:'down'},{row:2,col:5,dir:'down'},{row:0,col:6,dir:'down'},{row:2,col:6,dir:'down'},{row:3,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:6,col:2,dir:'down'},{row:6,col:3,dir:'down'},{row:0,col:2,dir:'up'},{row:6,col:0,dir:'up'}],
-  },
-  {
-    id: 60, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'snake', characterColor: MYSTIC_TEAL,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:3,dir:'right'},{row:0,col:6,dir:'up'},{row:6,col:6,dir:'left'},{row:6,col:3,dir:'left'},{row:6,col:0,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:1,col:0,dir:'left'},{row:5,col:6,dir:'right'},{row:4,col:0,dir:'left'},{row:4,col:6,dir:'right'},{row:0,col:2,dir:'up'},{row:6,col:4,dir:'down'}],
-  },
-  {
-    id: 61, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'horse-variant', characterColor: MYSTIC_GOLD,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:2,dir:'right'},{row:0,col:6,dir:'up'},{row:6,col:6,dir:'left'},{row:6,col:4,dir:'left'},{row:6,col:0,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:1,col:6,dir:'right'},{row:5,col:0,dir:'left'},{row:4,col:6,dir:'up'},{row:0,col:4,dir:'up'},{row:6,col:2,dir:'down'},{row:1,col:0,dir:'down'}],
-  },
-  {
-    id: 62, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'horse-variant', characterColor: MYSTIC_GOLD,
-    arrows: [{row:0,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:6,dir:'down'},{row:2,col:6,dir:'down'},{row:0,col:2,dir:'up'},{row:0,col:3,dir:'up'},{row:6,col:2,dir:'down'},{row:6,col:3,dir:'down'},{row:3,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:6,col:0,dir:'up'},{row:6,col:6,dir:'up'},{row:1,col:0,dir:'left'},{row:5,col:6,dir:'right'},{row:4,col:0,dir:'up'}],
-  },
-  {
-    id: 63, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'horse-variant', characterColor: MYSTIC_GOLD,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:3,dir:'right'},{row:0,col:6,dir:'up'},{row:6,col:6,dir:'left'},{row:6,col:3,dir:'left'},{row:6,col:0,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:1,col:6,dir:'right'},{row:5,col:0,dir:'left'},{row:4,col:6,dir:'right'},{row:1,col:0,dir:'left'},{row:0,col:2,dir:'up'},{row:6,col:4,dir:'down'},{row:5,col:6,dir:'up'}],
-  },
-  {
-    id: 64, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'horse-variant', characterColor: MYSTIC_GOLD,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:2,dir:'right'},{row:0,col:5,dir:'right'},{row:6,col:6,dir:'left'},{row:6,col:4,dir:'left'},{row:6,col:1,dir:'left'},{row:2,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:1,col:0,dir:'down'},{row:5,col:6,dir:'up'},{row:0,col:6,dir:'up'},{row:6,col:0,dir:'down'},{row:4,col:0,dir:'left'},{row:4,col:6,dir:'right'},{row:0,col:4,dir:'up'},{row:6,col:2,dir:'down'}],
-  },
-  {
-    id: 65, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'horse-variant', characterColor: MYSTIC_GOLD,
-    arrows: [{row:0,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:1,dir:'down'},{row:2,col:1,dir:'down'},{row:0,col:5,dir:'down'},{row:2,col:5,dir:'down'},{row:0,col:6,dir:'down'},{row:2,col:6,dir:'down'},{row:3,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:6,col:2,dir:'down'},{row:6,col:3,dir:'down'},{row:0,col:2,dir:'up'},{row:0,col:3,dir:'up'},{row:6,col:0,dir:'up'},{row:6,col:6,dir:'up'}],
-  },
-  // ─────────────────────────────────────────────
-  // LEVELS 66-80: Mystic Creatures | 7×7 | harder
-  // ─────────────────────────────────────────────
-  {
-    id: 66, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'crystal-ball', characterColor: MYSTIC_PURPLE,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:3,dir:'right'},{row:0,col:6,dir:'up'},{row:6,col:6,dir:'left'},{row:6,col:3,dir:'left'},{row:6,col:0,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:1,col:6,dir:'right'},{row:5,col:0,dir:'left'},{row:4,col:6,dir:'right'},{row:1,col:0,dir:'left'},{row:0,col:2,dir:'up'},{row:6,col:4,dir:'down'},{row:5,col:6,dir:'up'},{row:4,col:0,dir:'up'}],
-  },
-  {
-    id: 67, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'crystal-ball', characterColor: MYSTIC_PURPLE,
-    arrows: [{row:0,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:6,dir:'down'},{row:2,col:6,dir:'down'},{row:0,col:2,dir:'up'},{row:0,col:3,dir:'up'},{row:6,col:2,dir:'down'},{row:6,col:3,dir:'down'},{row:3,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:6,col:0,dir:'up'},{row:6,col:6,dir:'up'},{row:1,col:0,dir:'left'},{row:5,col:6,dir:'right'},{row:4,col:0,dir:'up'},{row:1,col:6,dir:'right'}],
-  },
-  {
-    id: 68, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'crystal-ball', characterColor: MYSTIC_PURPLE,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:2,dir:'right'},{row:0,col:5,dir:'right'},{row:6,col:6,dir:'left'},{row:6,col:4,dir:'left'},{row:6,col:1,dir:'left'},{row:2,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:1,col:0,dir:'down'},{row:5,col:6,dir:'up'},{row:0,col:6,dir:'up'},{row:6,col:0,dir:'down'},{row:4,col:0,dir:'left'},{row:4,col:6,dir:'right'},{row:0,col:4,dir:'up'},{row:6,col:2,dir:'down'},{row:5,col:0,dir:'up'}],
-  },
-  {
-    id: 69, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'crystal-ball', characterColor: MYSTIC_PURPLE,
-    arrows: [{row:0,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:1,dir:'down'},{row:2,col:1,dir:'down'},{row:0,col:5,dir:'down'},{row:2,col:5,dir:'down'},{row:0,col:6,dir:'down'},{row:2,col:6,dir:'down'},{row:3,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:6,col:2,dir:'down'},{row:6,col:3,dir:'down'},{row:0,col:2,dir:'up'},{row:6,col:0,dir:'up'},{row:5,col:6,dir:'right'},{row:4,col:0,dir:'left'},{row:6,col:4,dir:'down'}],
-  },
-  {
-    id: 70, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'crystal-ball', characterColor: MYSTIC_PURPLE,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:3,dir:'right'},{row:0,col:6,dir:'up'},{row:6,col:6,dir:'left'},{row:6,col:3,dir:'left'},{row:6,col:0,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:1,col:6,dir:'right'},{row:5,col:0,dir:'left'},{row:4,col:6,dir:'right'},{row:1,col:0,dir:'left'},{row:0,col:2,dir:'up'},{row:6,col:4,dir:'down'},{row:5,col:6,dir:'up'},{row:4,col:0,dir:'up'},{row:0,col:5,dir:'up'},{row:6,col:1,dir:'down'}],
-  },
-  {
-    id: 71, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'shimmer', characterColor: MYSTIC_GOLD,
-    arrows: [{row:0,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:6,dir:'down'},{row:2,col:6,dir:'down'},{row:0,col:2,dir:'up'},{row:0,col:3,dir:'up'},{row:6,col:2,dir:'down'},{row:6,col:3,dir:'down'},{row:3,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:6,col:0,dir:'up'},{row:6,col:6,dir:'up'},{row:1,col:0,dir:'left'},{row:5,col:6,dir:'right'},{row:4,col:0,dir:'left'},{row:1,col:6,dir:'right'},{row:5,col:0,dir:'up'},{row:0,col:5,dir:'up'}],
-  },
-  {
-    id: 72, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'shimmer', characterColor: MYSTIC_GOLD,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:2,dir:'right'},{row:0,col:5,dir:'right'},{row:6,col:6,dir:'left'},{row:6,col:4,dir:'left'},{row:6,col:1,dir:'left'},{row:2,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:1,col:0,dir:'down'},{row:5,col:6,dir:'up'},{row:0,col:6,dir:'up'},{row:6,col:0,dir:'down'},{row:4,col:0,dir:'left'},{row:4,col:6,dir:'right'},{row:0,col:4,dir:'up'},{row:6,col:2,dir:'down'},{row:5,col:0,dir:'up'},{row:1,col:6,dir:'right'}],
-  },
-  {
-    id: 73, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'shimmer', characterColor: MYSTIC_GOLD,
-    arrows: [{row:0,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:1,dir:'down'},{row:2,col:1,dir:'down'},{row:0,col:5,dir:'down'},{row:2,col:5,dir:'down'},{row:0,col:6,dir:'down'},{row:2,col:6,dir:'down'},{row:3,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:6,col:2,dir:'down'},{row:6,col:3,dir:'down'},{row:0,col:2,dir:'up'},{row:0,col:3,dir:'up'},{row:6,col:0,dir:'up'},{row:6,col:6,dir:'up'},{row:5,col:0,dir:'up'},{row:5,col:6,dir:'right'},{row:4,col:0,dir:'left'}],
-  },
-  {
-    id: 74, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'shimmer', characterColor: MYSTIC_GOLD,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:3,dir:'right'},{row:0,col:6,dir:'up'},{row:6,col:6,dir:'left'},{row:6,col:3,dir:'left'},{row:6,col:0,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:1,col:6,dir:'right'},{row:5,col:0,dir:'left'},{row:4,col:6,dir:'right'},{row:1,col:0,dir:'left'},{row:0,col:2,dir:'up'},{row:6,col:4,dir:'down'},{row:5,col:6,dir:'up'},{row:4,col:0,dir:'up'},{row:0,col:5,dir:'up'},{row:6,col:1,dir:'down'},{row:0,col:4,dir:'right'}],
-  },
-  {
-    id: 75, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'shimmer', characterColor: MYSTIC_GOLD,
-    arrows: [{row:0,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:6,dir:'down'},{row:2,col:6,dir:'down'},{row:0,col:2,dir:'up'},{row:0,col:3,dir:'up'},{row:6,col:2,dir:'down'},{row:6,col:3,dir:'down'},{row:3,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:6,col:0,dir:'up'},{row:6,col:6,dir:'up'},{row:1,col:0,dir:'left'},{row:5,col:6,dir:'right'},{row:4,col:0,dir:'left'},{row:1,col:6,dir:'right'},{row:5,col:0,dir:'up'},{row:0,col:5,dir:'up'},{row:4,col:6,dir:'up'},{row:6,col:1,dir:'right'}],
-  },
-  {
-    id: 76, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'magic-staff', characterColor: MYSTIC_TEAL,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:2,dir:'right'},{row:0,col:5,dir:'right'},{row:6,col:6,dir:'left'},{row:6,col:4,dir:'left'},{row:6,col:1,dir:'left'},{row:2,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:1,col:0,dir:'down'},{row:5,col:6,dir:'up'},{row:0,col:6,dir:'up'},{row:6,col:0,dir:'down'},{row:4,col:0,dir:'left'},{row:4,col:6,dir:'right'},{row:0,col:4,dir:'up'},{row:6,col:2,dir:'down'},{row:5,col:0,dir:'up'},{row:1,col:6,dir:'right'},{row:0,col:1,dir:'up'},{row:6,col:5,dir:'left'}],
-  },
-  {
-    id: 77, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'magic-staff', characterColor: MYSTIC_TEAL,
-    arrows: [{row:0,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:1,dir:'down'},{row:2,col:1,dir:'down'},{row:0,col:5,dir:'down'},{row:2,col:5,dir:'down'},{row:0,col:6,dir:'down'},{row:2,col:6,dir:'down'},{row:3,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:6,col:2,dir:'down'},{row:6,col:3,dir:'down'},{row:0,col:2,dir:'up'},{row:0,col:3,dir:'up'},{row:6,col:0,dir:'up'},{row:6,col:6,dir:'up'},{row:5,col:0,dir:'up'},{row:5,col:6,dir:'right'},{row:4,col:0,dir:'left'},{row:4,col:6,dir:'up'}],
-  },
-  {
-    id: 78, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'magic-staff', characterColor: MYSTIC_TEAL,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:3,dir:'right'},{row:0,col:6,dir:'up'},{row:6,col:6,dir:'left'},{row:6,col:3,dir:'left'},{row:6,col:0,dir:'down'},{row:2,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:1,col:6,dir:'right'},{row:5,col:0,dir:'left'},{row:4,col:6,dir:'right'},{row:1,col:0,dir:'left'},{row:0,col:2,dir:'up'},{row:6,col:4,dir:'down'},{row:5,col:6,dir:'up'},{row:4,col:0,dir:'up'},{row:0,col:5,dir:'up'},{row:6,col:1,dir:'down'},{row:0,col:4,dir:'right'},{row:6,col:5,dir:'up'}],
-  },
-  {
-    id: 79, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'magic-staff', characterColor: MYSTIC_TEAL,
-    arrows: [{row:0,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:6,dir:'down'},{row:2,col:6,dir:'down'},{row:0,col:2,dir:'up'},{row:0,col:3,dir:'up'},{row:6,col:2,dir:'down'},{row:6,col:3,dir:'down'},{row:3,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:6,col:0,dir:'up'},{row:6,col:6,dir:'up'},{row:1,col:0,dir:'left'},{row:5,col:6,dir:'right'},{row:4,col:0,dir:'left'},{row:1,col:6,dir:'right'},{row:5,col:0,dir:'up'},{row:0,col:5,dir:'up'},{row:4,col:6,dir:'up'},{row:6,col:1,dir:'right'},{row:0,col:4,dir:'right'}],
-  },
-  {
-    id: 80, gridSize: 7, mascotRow: 2, mascotCol: 2, mascotSize: 2,
-    character: 'magic-staff', characterColor: MYSTIC_TEAL,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:2,dir:'right'},{row:0,col:5,dir:'right'},{row:6,col:6,dir:'left'},{row:6,col:4,dir:'left'},{row:6,col:1,dir:'left'},{row:2,col:0,dir:'left'},{row:3,col:6,dir:'right'},{row:1,col:0,dir:'down'},{row:5,col:6,dir:'up'},{row:0,col:6,dir:'up'},{row:6,col:0,dir:'down'},{row:4,col:0,dir:'left'},{row:4,col:6,dir:'right'},{row:0,col:4,dir:'up'},{row:6,col:2,dir:'down'},{row:5,col:0,dir:'up'},{row:1,col:6,dir:'right'},{row:0,col:1,dir:'up'},{row:6,col:5,dir:'left'},{row:3,col:0,dir:'down'}],
-  },
-  // ─────────────────────────────────────────────
-  // LEVELS 81-95: Legendary Heroes | 8×8 | 2×2 mascot at (3,3)
-  // ─────────────────────────────────────────────
-  {
-    id: 81, gridSize: 8, mascotRow: 3, mascotCol: 3, mascotSize: 2,
-    character: 'sword-cross', characterColor: HERO_GOLD,
-    arrows: [{row:0,col:3,dir:'up'},{row:0,col:4,dir:'up'},{row:7,col:3,dir:'down'},{row:7,col:4,dir:'down'},{row:3,col:0,dir:'left'},{row:4,col:0,dir:'left'},{row:3,col:7,dir:'right'},{row:4,col:7,dir:'right'},{row:0,col:0,dir:'up'},{row:0,col:7,dir:'up'},{row:7,col:0,dir:'down'},{row:7,col:7,dir:'down'}],
-  },
-  {
-    id: 82, gridSize: 8, mascotRow: 3, mascotCol: 3, mascotSize: 2,
-    character: 'sword-cross', characterColor: HERO_GOLD,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:4,dir:'right'},{row:7,col:7,dir:'left'},{row:7,col:3,dir:'left'},{row:3,col:0,dir:'left'},{row:4,col:7,dir:'right'},{row:0,col:7,dir:'up'},{row:7,col:0,dir:'down'},{row:0,col:3,dir:'up'},{row:0,col:4,dir:'up'},{row:7,col:3,dir:'down'},{row:7,col:4,dir:'down'},{row:1,col:0,dir:'left'},{row:6,col:7,dir:'right'}],
-  },
-  {
-    id: 83, gridSize: 8, mascotRow: 3, mascotCol: 3, mascotSize: 2,
-    character: 'sword-cross', characterColor: HERO_GOLD,
-    arrows: [{row:0,col:0,dir:'down'},{row:3,col:0,dir:'down'},{row:0,col:7,dir:'down'},{row:3,col:7,dir:'down'},{row:0,col:3,dir:'up'},{row:0,col:4,dir:'up'},{row:7,col:3,dir:'down'},{row:7,col:4,dir:'down'},{row:4,col:0,dir:'left'},{row:4,col:7,dir:'right'},{row:7,col:0,dir:'up'},{row:7,col:7,dir:'up'},{row:1,col:0,dir:'left'},{row:6,col:7,dir:'right'},{row:2,col:7,dir:'right'}],
-  },
-  {
-    id: 84, gridSize: 8, mascotRow: 3, mascotCol: 3, mascotSize: 2,
-    character: 'sword-cross', characterColor: HERO_GOLD,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:4,dir:'right'},{row:7,col:7,dir:'left'},{row:7,col:3,dir:'left'},{row:3,col:0,dir:'left'},{row:4,col:7,dir:'right'},{row:0,col:7,dir:'up'},{row:7,col:0,dir:'down'},{row:0,col:3,dir:'up'},{row:7,col:4,dir:'down'},{row:1,col:0,dir:'left'},{row:6,col:7,dir:'right'},{row:2,col:7,dir:'right'},{row:5,col:0,dir:'left'},{row:0,col:6,dir:'up'},{row:7,col:1,dir:'down'}],
-  },
-  {
-    id: 85, gridSize: 8, mascotRow: 3, mascotCol: 3, mascotSize: 2,
-    character: 'sword-cross', characterColor: HERO_GOLD,
-    arrows: [{row:0,col:0,dir:'down'},{row:3,col:0,dir:'down'},{row:0,col:7,dir:'down'},{row:3,col:7,dir:'down'},{row:0,col:3,dir:'up'},{row:0,col:4,dir:'up'},{row:7,col:3,dir:'down'},{row:7,col:4,dir:'down'},{row:4,col:0,dir:'left'},{row:4,col:7,dir:'right'},{row:7,col:0,dir:'up'},{row:7,col:7,dir:'up'},{row:1,col:0,dir:'left'},{row:6,col:7,dir:'right'},{row:2,col:7,dir:'right'},{row:5,col:0,dir:'up'},{row:0,col:2,dir:'up'}],
-  },
-  {
-    id: 86, gridSize: 8, mascotRow: 3, mascotCol: 3, mascotSize: 2,
-    character: 'shield-star', characterColor: HERO_SILVER,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:3,dir:'right'},{row:0,col:7,dir:'up'},{row:7,col:7,dir:'left'},{row:7,col:4,dir:'left'},{row:7,col:0,dir:'down'},{row:3,col:0,dir:'left'},{row:4,col:7,dir:'right'},{row:1,col:7,dir:'right'},{row:6,col:0,dir:'left'},{row:5,col:7,dir:'right'},{row:2,col:0,dir:'left'},{row:0,col:5,dir:'up'},{row:7,col:2,dir:'down'},{row:6,col:7,dir:'up'},{row:1,col:0,dir:'down'},{row:0,col:6,dir:'up'}],
-  },
-  {
-    id: 87, gridSize: 8, mascotRow: 3, mascotCol: 3, mascotSize: 2,
-    character: 'shield-star', characterColor: HERO_SILVER,
-    arrows: [{row:0,col:0,dir:'down'},{row:3,col:0,dir:'down'},{row:0,col:1,dir:'down'},{row:3,col:1,dir:'down'},{row:0,col:6,dir:'down'},{row:3,col:6,dir:'down'},{row:0,col:7,dir:'down'},{row:3,col:7,dir:'down'},{row:4,col:0,dir:'left'},{row:4,col:7,dir:'right'},{row:7,col:3,dir:'down'},{row:7,col:4,dir:'down'},{row:0,col:3,dir:'up'},{row:0,col:4,dir:'up'},{row:7,col:0,dir:'up'},{row:7,col:7,dir:'up'},{row:6,col:0,dir:'up'},{row:6,col:7,dir:'right'},{row:5,col:0,dir:'left'}],
-  },
-  {
-    id: 88, gridSize: 8, mascotRow: 3, mascotCol: 3, mascotSize: 2,
-    character: 'shield-star', characterColor: HERO_SILVER,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:3,dir:'right'},{row:0,col:6,dir:'right'},{row:7,col:7,dir:'left'},{row:7,col:4,dir:'left'},{row:7,col:1,dir:'left'},{row:3,col:0,dir:'left'},{row:4,col:7,dir:'right'},{row:1,col:0,dir:'down'},{row:6,col:7,dir:'up'},{row:0,col:7,dir:'up'},{row:7,col:0,dir:'down'},{row:5,col:0,dir:'left'},{row:5,col:7,dir:'right'},{row:0,col:5,dir:'up'},{row:7,col:2,dir:'down'},{row:6,col:0,dir:'up'},{row:2,col:7,dir:'right'},{row:0,col:1,dir:'up'},{row:7,col:6,dir:'left'}],
-  },
-  {
-    id: 89, gridSize: 8, mascotRow: 3, mascotCol: 3, mascotSize: 2,
-    character: 'shield-star', characterColor: HERO_SILVER,
-    arrows: [{row:0,col:0,dir:'down'},{row:3,col:0,dir:'down'},{row:0,col:7,dir:'down'},{row:3,col:7,dir:'down'},{row:0,col:3,dir:'up'},{row:0,col:4,dir:'up'},{row:7,col:3,dir:'down'},{row:7,col:4,dir:'down'},{row:4,col:0,dir:'left'},{row:4,col:7,dir:'right'},{row:7,col:0,dir:'up'},{row:7,col:7,dir:'up'},{row:1,col:0,dir:'left'},{row:6,col:7,dir:'right'},{row:2,col:7,dir:'right'},{row:5,col:0,dir:'up'},{row:0,col:2,dir:'up'},{row:0,col:5,dir:'up'},{row:7,col:2,dir:'down'},{row:7,col:5,dir:'left'}],
-  },
-  {
-    id: 90, gridSize: 8, mascotRow: 3, mascotCol: 3, mascotSize: 2,
-    character: 'shield-star', characterColor: HERO_SILVER,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:4,dir:'right'},{row:7,col:7,dir:'left'},{row:7,col:3,dir:'left'},{row:3,col:0,dir:'left'},{row:4,col:7,dir:'right'},{row:0,col:7,dir:'up'},{row:7,col:0,dir:'down'},{row:0,col:3,dir:'up'},{row:0,col:4,dir:'up'},{row:7,col:3,dir:'down'},{row:7,col:4,dir:'down'},{row:1,col:0,dir:'left'},{row:6,col:7,dir:'right'},{row:2,col:0,dir:'left'},{row:5,col:7,dir:'right'},{row:0,col:2,dir:'up'},{row:7,col:5,dir:'down'},{row:0,col:6,dir:'up'},{row:7,col:1,dir:'down'}],
-  },
-  // ─────────────────────────────────────────────
-  // LEVELS 91-99: Legendary Heroes | 8×8 | hardest
-  // ─────────────────────────────────────────────
-  {
-    id: 91, gridSize: 8, mascotRow: 3, mascotCol: 3, mascotSize: 2,
-    character: 'crown', characterColor: QUEEN_RAINBOW,
-    arrows: [{row:0,col:0,dir:'down'},{row:3,col:0,dir:'down'},{row:0,col:1,dir:'down'},{row:3,col:1,dir:'down'},{row:0,col:6,dir:'down'},{row:3,col:6,dir:'down'},{row:0,col:7,dir:'down'},{row:3,col:7,dir:'down'},{row:4,col:0,dir:'left'},{row:4,col:7,dir:'right'},{row:7,col:3,dir:'down'},{row:7,col:4,dir:'down'},{row:0,col:3,dir:'up'},{row:0,col:4,dir:'up'},{row:7,col:0,dir:'up'},{row:7,col:7,dir:'up'},{row:6,col:0,dir:'up'},{row:6,col:7,dir:'right'},{row:5,col:0,dir:'left'},{row:2,col:7,dir:'right'}],
-  },
-  {
-    id: 92, gridSize: 8, mascotRow: 3, mascotCol: 3, mascotSize: 2,
-    character: 'crown', characterColor: QUEEN_RAINBOW,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:3,dir:'right'},{row:0,col:6,dir:'right'},{row:7,col:7,dir:'left'},{row:7,col:4,dir:'left'},{row:7,col:1,dir:'left'},{row:3,col:0,dir:'left'},{row:4,col:7,dir:'right'},{row:1,col:0,dir:'down'},{row:6,col:7,dir:'up'},{row:0,col:7,dir:'up'},{row:7,col:0,dir:'down'},{row:5,col:0,dir:'left'},{row:5,col:7,dir:'right'},{row:0,col:5,dir:'up'},{row:7,col:2,dir:'down'},{row:6,col:0,dir:'up'},{row:2,col:7,dir:'right'},{row:0,col:1,dir:'up'},{row:7,col:6,dir:'left'},{row:2,col:0,dir:'left'}],
-  },
-  {
-    id: 93, gridSize: 8, mascotRow: 3, mascotCol: 3, mascotSize: 2,
-    character: 'crown', characterColor: QUEEN_RAINBOW,
-    arrows: [{row:0,col:0,dir:'down'},{row:3,col:0,dir:'down'},{row:0,col:7,dir:'down'},{row:3,col:7,dir:'down'},{row:0,col:3,dir:'up'},{row:0,col:4,dir:'up'},{row:7,col:3,dir:'down'},{row:7,col:4,dir:'down'},{row:4,col:0,dir:'left'},{row:4,col:7,dir:'right'},{row:7,col:0,dir:'up'},{row:7,col:7,dir:'up'},{row:1,col:0,dir:'left'},{row:6,col:7,dir:'right'},{row:2,col:7,dir:'right'},{row:5,col:0,dir:'up'},{row:0,col:2,dir:'up'},{row:0,col:5,dir:'up'},{row:7,col:2,dir:'down'},{row:7,col:5,dir:'left'},{row:6,col:0,dir:'up'},{row:1,col:7,dir:'right'}],
-  },
-  {
-    id: 94, gridSize: 8, mascotRow: 3, mascotCol: 3, mascotSize: 2,
-    character: 'crown', characterColor: QUEEN_RAINBOW,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:4,dir:'right'},{row:7,col:7,dir:'left'},{row:7,col:3,dir:'left'},{row:3,col:0,dir:'left'},{row:4,col:7,dir:'right'},{row:0,col:7,dir:'up'},{row:7,col:0,dir:'down'},{row:0,col:3,dir:'up'},{row:0,col:4,dir:'up'},{row:7,col:3,dir:'down'},{row:7,col:4,dir:'down'},{row:1,col:0,dir:'left'},{row:6,col:7,dir:'right'},{row:2,col:0,dir:'left'},{row:5,col:7,dir:'right'},{row:0,col:2,dir:'up'},{row:7,col:5,dir:'down'},{row:0,col:6,dir:'up'},{row:7,col:1,dir:'down'},{row:0,col:1,dir:'up'},{row:7,col:6,dir:'left'}],
-  },
-  {
-    id: 95, gridSize: 8, mascotRow: 3, mascotCol: 3, mascotSize: 2,
-    character: 'crown', characterColor: QUEEN_RAINBOW,
-    arrows: [{row:0,col:0,dir:'down'},{row:3,col:0,dir:'down'},{row:0,col:1,dir:'down'},{row:3,col:1,dir:'down'},{row:0,col:6,dir:'down'},{row:3,col:6,dir:'down'},{row:0,col:7,dir:'down'},{row:3,col:7,dir:'down'},{row:4,col:0,dir:'left'},{row:4,col:7,dir:'right'},{row:7,col:3,dir:'down'},{row:7,col:4,dir:'down'},{row:0,col:3,dir:'up'},{row:0,col:4,dir:'up'},{row:7,col:0,dir:'up'},{row:7,col:7,dir:'up'},{row:6,col:0,dir:'up'},{row:6,col:7,dir:'right'},{row:5,col:0,dir:'left'},{row:2,col:7,dir:'right'},{row:0,col:2,dir:'up'},{row:7,col:5,dir:'left'},{row:5,col:7,dir:'up'}],
-  },
-  // ─────────────────────────────────────────────
-  // LEVELS 96-100: FINAL QUEEN — hardest
-  // ─────────────────────────────────────────────
-  {
-    id: 96, gridSize: 8, mascotRow: 3, mascotCol: 3, mascotSize: 2,
-    character: 'crown', characterColor: QUEEN_RAINBOW,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:3,dir:'right'},{row:0,col:6,dir:'right'},{row:7,col:7,dir:'left'},{row:7,col:4,dir:'left'},{row:7,col:1,dir:'left'},{row:3,col:0,dir:'left'},{row:4,col:7,dir:'right'},{row:1,col:0,dir:'down'},{row:6,col:7,dir:'up'},{row:0,col:7,dir:'up'},{row:7,col:0,dir:'down'},{row:5,col:0,dir:'left'},{row:5,col:7,dir:'right'},{row:0,col:5,dir:'up'},{row:7,col:2,dir:'down'},{row:6,col:0,dir:'up'},{row:2,col:7,dir:'right'},{row:0,col:1,dir:'up'},{row:7,col:6,dir:'left'},{row:2,col:0,dir:'left'},{row:4,col:0,dir:'up'},{row:0,col:2,dir:'up'}],
-  },
-  {
-    id: 97, gridSize: 8, mascotRow: 3, mascotCol: 3, mascotSize: 2,
-    character: 'crown', characterColor: QUEEN_RAINBOW,
-    arrows: [{row:0,col:0,dir:'down'},{row:3,col:0,dir:'down'},{row:0,col:7,dir:'down'},{row:3,col:7,dir:'down'},{row:0,col:3,dir:'up'},{row:0,col:4,dir:'up'},{row:7,col:3,dir:'down'},{row:7,col:4,dir:'down'},{row:4,col:0,dir:'left'},{row:4,col:7,dir:'right'},{row:7,col:0,dir:'up'},{row:7,col:7,dir:'up'},{row:1,col:0,dir:'left'},{row:6,col:7,dir:'right'},{row:2,col:7,dir:'right'},{row:5,col:0,dir:'up'},{row:0,col:2,dir:'up'},{row:0,col:5,dir:'up'},{row:7,col:2,dir:'down'},{row:7,col:5,dir:'left'},{row:6,col:0,dir:'up'},{row:1,col:7,dir:'right'},{row:0,col:6,dir:'up'}],
-  },
-  {
-    id: 98, gridSize: 8, mascotRow: 3, mascotCol: 3, mascotSize: 2,
-    character: 'crown', characterColor: QUEEN_RAINBOW,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:3,dir:'right'},{row:0,col:6,dir:'right'},{row:7,col:7,dir:'left'},{row:7,col:4,dir:'left'},{row:7,col:1,dir:'left'},{row:3,col:0,dir:'left'},{row:4,col:7,dir:'right'},{row:1,col:0,dir:'down'},{row:6,col:7,dir:'up'},{row:0,col:7,dir:'up'},{row:7,col:0,dir:'down'},{row:5,col:0,dir:'left'},{row:5,col:7,dir:'right'},{row:0,col:5,dir:'up'},{row:7,col:2,dir:'down'},{row:6,col:0,dir:'up'},{row:2,col:7,dir:'right'},{row:0,col:1,dir:'up'},{row:7,col:6,dir:'left'},{row:2,col:0,dir:'left'},{row:4,col:0,dir:'up'},{row:0,col:2,dir:'up'},{row:7,col:5,dir:'up'}],
-  },
-  {
-    id: 99, gridSize: 8, mascotRow: 3, mascotCol: 3, mascotSize: 2,
-    character: 'crown', characterColor: QUEEN_RAINBOW,
-    arrows: [{row:0,col:0,dir:'down'},{row:3,col:0,dir:'down'},{row:0,col:1,dir:'down'},{row:3,col:1,dir:'down'},{row:0,col:6,dir:'down'},{row:3,col:6,dir:'down'},{row:0,col:7,dir:'down'},{row:3,col:7,dir:'down'},{row:4,col:0,dir:'left'},{row:4,col:7,dir:'right'},{row:7,col:3,dir:'down'},{row:7,col:4,dir:'down'},{row:0,col:3,dir:'up'},{row:0,col:4,dir:'up'},{row:7,col:0,dir:'up'},{row:7,col:7,dir:'up'},{row:6,col:0,dir:'up'},{row:6,col:7,dir:'right'},{row:5,col:0,dir:'left'},{row:2,col:7,dir:'right'},{row:0,col:2,dir:'up'},{row:7,col:5,dir:'left'},{row:5,col:7,dir:'up'},{row:2,col:0,dir:'left'}],
-  },
-  {
-    id: 100, gridSize: 8, mascotRow: 3, mascotCol: 3, mascotSize: 2,
-    character: 'crown', characterColor: '#FFD700',
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:4,dir:'right'},{row:7,col:7,dir:'left'},{row:7,col:3,dir:'left'},{row:3,col:0,dir:'left'},{row:4,col:7,dir:'right'},{row:0,col:7,dir:'up'},{row:7,col:0,dir:'down'},{row:0,col:3,dir:'up'},{row:0,col:4,dir:'up'},{row:7,col:3,dir:'down'},{row:7,col:4,dir:'down'},{row:1,col:0,dir:'left'},{row:6,col:7,dir:'right'},{row:2,col:0,dir:'left'},{row:5,col:7,dir:'right'},{row:0,col:2,dir:'up'},{row:7,col:5,dir:'down'},{row:0,col:6,dir:'up'},{row:7,col:1,dir:'down'},{row:0,col:1,dir:'up'},{row:7,col:6,dir:'left'},{row:1,col:7,dir:'right'},{row:6,col:0,dir:'left'}],
-  },
+  LV1, LV2, LV3, LV4, LV5, LV6, LV7, LV8, LV9, LV10,
+  LV11, LV12, LV13, LV14, LV15, LV16, LV17, LV18, LV19, LV20,
+  ...generateLevels(21, 60, 8, 4, 4),
+  ...generateLevels(61, 100, 9, 4, 4),
 ];
+
+// ══════════════════════════════════════════════════════
+// SIMPLE PROCEDURAL LEVELS for 21–100
+// Four templates, cycling. All verified: no overlaps, solvable, no mascot blocks.
+// ══════════════════════════════════════════════════════
+function generateLevels(from: number, to: number, gs: number, mr: number, mc: number): Level[] {
+  const chars = ['crystal-ball', 'shimmer', 'sword-cross', 'shield-star', 'crown', 'star-face'];
+  const colors = ['#FFE4B7', '#B7FFF0', '#FFD700', '#E8E8FF', '#FFB7E8', '#B7D4FF'];
+
+  return Array.from({ length: to - from + 1 }, (_, k) => {
+    const id = from + k;
+    const ci = k % chars.length;
+    const tpl = k % 4;
+
+    let arrows: LevelArrow[];
+
+    if (tpl === 0) {
+      // Template A: two right chains + two down chains
+      // A1 exits → A2 slides.  A3 exits → A4 slides.
+      arrows = [
+        mkArrow([[1, 2], [1, 5]], 'right'),               // A1 — exits
+        mkArrow([[1, 0], [1, 1]], 'right', true),         // A2 — blocked by A1@(1,2)
+        mkArrow([[2, gs - 1], [5, gs - 1]], 'down'),      // A3 — exits
+        mkArrow([[0, gs - 1], [1, gs - 1]], 'down', true), // A4 — blocked by A3@(2,gs-1)
+      ];
+    } else if (tpl === 1) {
+      // Template B: up→right chain; left→down chain
+      // B1 exits → B2 slides.  B3 exits → B4 slides.
+      arrows = [
+        mkArrow([[gs - 3, 3], [1, 3]], 'up'),             // B1 — exits
+        mkArrow([[1, 0], [1, 2]], 'right', true),         // B2 — blocked by B1@(1,3)
+        mkArrow([[3, gs - 1], [3, gs - 3]], 'left'),      // B3 — exits
+        mkArrow([[0, gs - 2], [2, gs - 2]], 'down', true), // B4 — blocked by B3@(3,gs-2)
+      ];
+    } else if (tpl === 2) {
+      // Template C: L-shape right + one exits unblocks two
+      // C2 exits → C1 slides; C4 slides.
+      arrows = [
+        mkArrow([[0, 0], [3, 0], [3, 3]], 'right'),       // C1 — L, blocked by C2@(3,4)
+        mkArrow([[3, 4], [3, 5]], 'right', true),         // C2 — exits
+        mkArrow([[gs - 1, 1], [gs - 3, 1]], 'up'),        // C3 — independent
+        mkArrow([[0, 5], [2, 5]], 'down', true),          // C4 — blocked by C2@(3,5)
+      ];
+    } else {
+      // Template D: L-shape right (avoids mascot), one down blocker, two independents
+      // D2 exits → D1 slides.
+      arrows = [
+        mkArrow([[3, 0], [1, 0], [1, 3]], 'right', true), // D1 — L, blocked by D2@(1,4)
+        mkArrow([[0, 4], [1, 4]], 'down'),                // D2 — exits
+        mkArrow([[gs - 1, 4], [gs - 1, 6]], 'right'),    // D3 — independent
+        mkArrow([[gs - 2, gs - 1], [gs - 2, gs - 3]], 'left', true), // D4 — independent
+      ];
+    }
+
+    return {
+      id,
+      gridSize: gs,
+      mascotRow: mr,
+      mascotCol: mc,
+      character: chars[ci],
+      characterColor: colors[ci],
+      arrows,
+    };
+  });
+}

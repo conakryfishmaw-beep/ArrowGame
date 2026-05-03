@@ -1,5 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Dimensions, StyleSheet, View } from 'react-native';
+import { Animated, Dimensions, Platform, StyleSheet, View } from 'react-native';
+
+const ND = Platform.OS !== 'web';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -56,21 +58,21 @@ export function Confetti({ active }: ConfettiProps) {
         Animated.timing(p.y, {
           toValue: SCREEN_H + 50,
           duration: 1800 + Math.random() * 1200,
-          useNativeDriver: true,
+          useNativeDriver: ND,
         }),
         Animated.timing(p.x, {
           toValue: p.startX + (Math.random() - 0.5) * 200,
           duration: 2000 + Math.random() * 1000,
-          useNativeDriver: true,
+          useNativeDriver: ND,
         }),
         Animated.timing(p.rotate, {
           toValue: (Math.random() > 0.5 ? 1 : -1) * (3 + Math.random() * 8),
           duration: 2000,
-          useNativeDriver: true,
+          useNativeDriver: ND,
         }),
         Animated.sequence([
           Animated.delay(1200 + Math.random() * 500),
-          Animated.timing(p.opacity, { toValue: 0, duration: 600, useNativeDriver: true }),
+          Animated.timing(p.opacity, { toValue: 0, duration: 600, useNativeDriver: ND }),
         ]),
       ])
     );

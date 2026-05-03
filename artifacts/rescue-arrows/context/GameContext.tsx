@@ -1,18 +1,23 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { LEVELS, Level } from '@/data/levels';
-import { GAME_COLORS } from '@/constants/colors';
+import { LEVELS, Level, CellPos } from '@/data/levels';
 
-const ARROW_COLORS = [GAME_COLORS.arrowMint, GAME_COLORS.arrowBlue, GAME_COLORS.arrowPink, GAME_COLORS.arrowYellow];
-const STORAGE_KEY = '@rescue_arrows_progress';
+export type { CellPos };
+
+const STORAGE_KEY = '@rescue_arrows_progress_v2';
 
 export interface ActiveArrow {
   id: string;
-  row: number;
-  col: number;
+  cells: CellPos[];
   dir: 'up' | 'down' | 'left' | 'right';
   color: string;
+  accent: boolean;
   exiting: boolean;
+}
+
+interface SlideResult {
+  moved: boolean;
+  exited: boolean;
 }
 
 interface GameContextValue {
@@ -22,7 +27,7 @@ interface GameContextValue {
   arrows: ActiveArrow[];
   isLevelComplete: boolean;
   hintArrowId: string | null;
-  slideArrow: (id: string) => { newRow: number; newCol: number; exited: boolean; moved: boolean };
+  slideArrow: (id: string) => SlideResult;
   removeExitedArrow: (id: string) => void;
   restartLevel: () => void;
   nextLevel: () => void;
@@ -33,23 +38,21 @@ interface GameContextValue {
 
 const GameContext = createContext<GameContextValue | null>(null);
 
+// Arrow colors: two charcoal variants (slightly different shades)
+const ARROW_COLORS = ['#1A1A1A', '#2D2D2D', '#111111', '#222222'];
+
 function getMascotCells(level: Level): Set<string> {
-  const cells = new Set<string>();
-  for (let r = level.mascotRow; r < level.mascotRow + level.mascotSize; r++) {
-    for (let c = level.mascotCol; c < level.mascotCol + level.mascotSize; c++) {
-      cells.add(`${r},${c}`);
-    }
-  }
-  return cells;
+  // 1×1 mascot for all levels in new design
+  return new Set([`${level.mascotRow},${level.mascotCol}`]);
 }
 
 function buildArrows(level: Level): ActiveArrow[] {
   return level.arrows.map((a, i) => ({
     id: `arrow-${level.id}-${i}`,
-    row: a.row,
-    col: a.col,
+    cells: a.cells,
     dir: a.dir,
-    color: ARROW_COLORS[i % ARROW_COLORS.length],
+    color: a.accent ? '#E84855' : ARROW_COLORS[i % ARROW_COLORS.length],
+    accent: a.accent,
     exiting: false,
   }));
 }
@@ -90,62 +93,81 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ saved: currentLevel, highest: highestUnlocked }));
   }, [currentLevel, highestUnlocked]);
 
-  const slideArrow = useCallback((id: string): { newRow: number; newCol: number; exited: boolean; moved: boolean } => {
-    let result = { newRow: 0, newCol: 0, exited: false, moved: false };
+  const slideArrow = useCallback((id: string): SlideResult => {
+    let result: SlideResult = { moved: false, exited: false };
 
     setArrows((prev) => {
       const arrow = prev.find((a) => a.id === id);
       if (!arrow || arrow.exiting) return prev;
 
       const mascotCells = getMascotCells(level);
-      const occupied = new Set<string>(
-        prev.filter((a) => a.id !== id && !a.exiting).map((a) => `${a.row},${a.col}`)
+      const otherCells = new Set<string>(
+        prev
+          .filter((a) => a.id !== id && !a.exiting)
+          .flatMap((a) => a.cells)
+          .map((c) => `${c.row},${c.col}`)
       );
 
       const dr = arrow.dir === 'down' ? 1 : arrow.dir === 'up' ? -1 : 0;
       const dc = arrow.dir === 'right' ? 1 : arrow.dir === 'left' ? -1 : 0;
 
-      let curRow = arrow.row;
-      let curCol = arrow.col;
-      let moved = false;
+      let steps = 0;
+      let exits = false;
 
+      // eslint-disable-next-line no-constant-condition
       while (true) {
-        const nextRow = curRow + dr;
-        const nextCol = curCol + dc;
+        const s = steps + 1;
+        const newCells = arrow.cells.map((c) => ({ row: c.row + s * dr, col: c.col + s * dc }));
+        const head = newCells[newCells.length - 1];
 
-        const outOfBounds = nextRow < 0 || nextRow >= level.gridSize || nextCol < 0 || nextCol >= level.gridSize;
-        if (outOfBounds) {
-          // Mark as exiting — keep row/col at last valid cell, ArrowCell will animate off-screen
-          result = { newRow: curRow, newCol: curCol, exited: true, moved: true };
-          return prev.map((a) => a.id === id ? { ...a, row: curRow, col: curCol, exiting: true } : a);
+        // Check exit condition
+        if (head.row < 0 || head.row >= level.gridSize || head.col < 0 || head.col >= level.gridSize) {
+          exits = true;
+          // steps stays at current value (arrow moved `steps` cells within grid)
+          break;
         }
 
-        const hitMascot = mascotCells.has(`${nextRow},${nextCol}`);
-        const hitArrow = occupied.has(`${nextRow},${nextCol}`);
+        // Check collision
+        const collision = newCells.some(
+          (c) => otherCells.has(`${c.row},${c.col}`) || mascotCells.has(`${c.row},${c.col}`)
+        );
+        if (collision) break;
 
-        if (hitMascot || hitArrow) {
-          result = { newRow: curRow, newCol: curCol, exited: false, moved };
-          if (!moved) return prev;
-          return prev.map((a) => a.id === id ? { ...a, row: curRow, col: curCol } : a);
-        }
+        steps = s;
+      }
 
-        curRow = nextRow;
-        curCol = nextCol;
-        moved = true;
+      if (steps === 0 && !exits) {
+        result = { moved: false, exited: false };
+        return prev;
+      }
+
+      const finalCells = arrow.cells.map((c) => ({
+        row: c.row + steps * dr,
+        col: c.col + steps * dc,
+      }));
+
+      result = { moved: steps > 0 || exits, exited: exits };
+
+      if (exits) {
+        return prev.map((a) =>
+          a.id === id ? { ...a, cells: finalCells, exiting: true } : a
+        );
+      } else {
+        return prev.map((a) =>
+          a.id === id ? { ...a, cells: finalCells } : a
+        );
       }
     });
 
     return result;
   }, [level]);
 
-  // Called by ArrowCell once its exit animation finishes
   const removeExitedArrow = useCallback((id: string) => {
     setArrows((prev) => {
       const remaining = prev.filter((a) => a.id !== id);
-      const anyActive = remaining.some((a) => !a.exiting);
-      const anyExiting = remaining.some((a) => a.exiting);
-      if (!anyActive && !anyExiting) {
-        // All arrows gone — level complete
+      const hasActive = remaining.some((a) => !a.exiting);
+      const hasExiting = remaining.some((a) => a.exiting);
+      if (!hasActive && !hasExiting) {
         setTimeout(() => setIsLevelComplete(true), 120);
       }
       return remaining;
@@ -178,35 +200,39 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const showHint = useCallback(() => {
     setArrows((prev) => {
       const mascotCells = getMascotCells(level);
-      const occupied = new Set<string>(prev.filter(a => !a.exiting).map((a) => `${a.row},${a.col}`));
+      const allCells = new Set<string>(
+        prev.filter((a) => !a.exiting).flatMap((a) => a.cells).map((c) => `${c.row},${c.col}`)
+      );
 
-      const removable = prev.filter(a => !a.exiting).find((arrow) => {
+      const removable = prev.filter((a) => !a.exiting).find((arrow) => {
         const dr = arrow.dir === 'down' ? 1 : arrow.dir === 'up' ? -1 : 0;
         const dc = arrow.dir === 'right' ? 1 : arrow.dir === 'left' ? -1 : 0;
-        let r = arrow.row;
-        let c = arrow.col;
+        const otherCells = new Set(
+          [...allCells].filter(
+            (k) => !arrow.cells.some((c) => `${c.row},${c.col}` === k)
+          )
+        );
 
+        let s = 1;
+        // eslint-disable-next-line no-constant-condition
         while (true) {
-          const nr = r + dr;
-          const nc = c + dc;
-          if (nr < 0 || nr >= level.gridSize || nc < 0 || nc >= level.gridSize) return true;
-          if (mascotCells.has(`${nr},${nc}`)) return false;
-          const key = `${nr},${nc}`;
-          if (occupied.has(key) && key !== `${arrow.row},${arrow.col}`) return false;
-          r = nr;
-          c = nc;
+          const newCells = arrow.cells.map((c) => ({ row: c.row + s * dr, col: c.col + s * dc }));
+          const head = newCells[newCells.length - 1];
+          if (head.row < 0 || head.row >= level.gridSize || head.col < 0 || head.col >= level.gridSize) {
+            return true;
+          }
+          const collision = newCells.some(
+            (c) => otherCells.has(`${c.row},${c.col}`) || mascotCells.has(`${c.row},${c.col}`)
+          );
+          if (collision) return false;
+          s++;
         }
       });
 
-      if (removable) {
-        setHintArrowId(removable.id);
+      const target = removable ?? prev.filter((a) => !a.exiting)[0];
+      if (target) {
+        setHintArrowId(target.id);
         setTimeout(() => setHintArrowId(null), 2000);
-      } else {
-        const first = prev.filter(a => !a.exiting)[0];
-        if (first) {
-          setHintArrowId(first.id);
-          setTimeout(() => setHintArrowId(null), 2000);
-        }
       }
       return prev;
     });
