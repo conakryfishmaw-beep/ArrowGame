@@ -1,0 +1,26 @@
+kind = "mobile"
+previewPath = "/"
+title = "Rescue Arrows"
+version = "1.0.0"
+id = "artifacts/rescue-arrows"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+name = "expo"
+paths = [ "/" ]
+localPort = 23761
+
+[services.development]
+run = "pnpm --filter @workspace/rescue-arrows run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/rescue-arrows", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/rescue-arrows", "run", "serve" ]
+
+[services.env]
+PORT = "23761"
+BASE_PATH = "/"

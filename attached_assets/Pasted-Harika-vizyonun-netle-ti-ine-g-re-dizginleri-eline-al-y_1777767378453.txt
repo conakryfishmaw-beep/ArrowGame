@@ -1,0 +1,43 @@
+Harika, vizyonun netleştiğine göre dizginleri eline alıyoruz. İşte Replit Agent'a kopyalayıp yapıştırabileceğin, 100 bölümlük koleksiyon mantığına ve "kurtarma" hikayesine odaklanmış master prompt.
+
+📝 Replit Agent İçin: "Rescue Arrows" Proje İstemi
+"Aşağıdaki özelliklere sahip, minimalist bulmaca mekaniğini 'Mascot Kurtarma' hikayesiyle birleştiren 100 bölümlük bir mobil oyun (Expo/React Native) oluştur:
+
+1. Genel Mimari & Tasarım
+Tema: Tam siyah arka plan (#000000). Oklar pastel renklerde (Mint Yeşili, Bebek Mavisi, Soft Pembe).
+
+Merkez Odak: Grid'in tam ortasında (seviyeye göre 1x1 veya 2x2 alan kaplayan) sabit bir 'Mascot' alanı olsun.
+
+UI: Üstte 'Bölüm X/100', altta 'Yeniden Başlat' ve 'İpucu' butonları.
+
+2. 100 Bölümlük Karakter & Seviye Sistemi
+Koleksiyon: Her 10 bölümde bir kurtarılacak karakter türü değişsin.
+
+1-20: Şirin orman hayvanları (Tavşan, Kedi, Ayı).
+
+21-50: Chibi tarzı anime kız karakterler.
+
+51-80: Mistik yaratıklar (Peri, Ejderha yavrusu, Unicorn).
+
+81-100: Efsanevi kahramanlar ve Final Kraliçesi.
+
+Görsel Yönetimi: Karakterler için başlangıçta Openmoji veya Lucide-react kütüphanesindeki şirin ikonları kullan; ancak kod yapısını PNG/WebP dosyalarını kolayca import edebileceğim bir assets/characters dizini üzerine kur.
+
+3. Oyun Mekaniği (Core Logic)
+Ok Hareketleri: Kullanıcı oka dokunduğunda, ok baktığı yöne doğru hızla kayar.
+
+Çarpışma: Bir ok başka bir oka veya merkezdeki karaktere çarparsa tık sesiyle durur.
+
+Kazanma: Ekrandaki tüm oklar dışarı fırlatılıp alan temizlendiğinde, merkezdeki karakter sevinç animasyonuyla parlar ve bir sonraki bölüme geçilir.
+
+Kayıt: Kullanıcının kaldığı seviyeyi AsyncStorage ile kaydet.
+
+4. Animasyon & Efektler
+Framer Motion: Okların kayma hareketi ve karakterin 'nefes alma' (idle) efekti için kullan.
+
+Haptic: Her ok çarpışmasında hafif, seviye geçişlerinde güçlü bir titreşim (Haptic Feedback) ekle.
+
+Kutlama: Bölüm sonunda ekrana konfeti (canvas-confetti benzeri) yağdır.
+
+5. Teknik Detay
+Tüm seviye verilerini (ok pozisyonları ve yönleri) data/levels.json dosyasında tut. İlk aşamada mekaniği test etmek için 5 farklı zorlukta örnek seviye üret, 100 seviyeye genişletilebilir yapıyı hazırla."
