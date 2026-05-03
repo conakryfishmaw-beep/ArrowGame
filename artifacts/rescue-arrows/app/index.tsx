@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Dimensions, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { router } from 'expo-router';
 import { useGame } from '@/context/GameContext';
 import { PathArrow } from '@/components/PathArrow';
 import { MascotCell } from '@/components/MascotCell';
@@ -63,10 +62,6 @@ export default function GameScreen() {
     <View style={[styles.screen, { paddingTop: topPad, paddingBottom: botPad + BANNER_HEIGHT }]}>
       {/* ── Header ─────────────────────────────── */}
       <View style={styles.header}>
-        <Pressable style={styles.albumBtn} onPress={() => router.push('/album')}>
-          <MaterialCommunityIcons name="image-multiple-outline" size={20} color="#555555" />
-        </Pressable>
-
         <View>
           <Text style={styles.levelLabel}>LEVEL</Text>
           <Text style={styles.levelNum}>{currentLevel}</Text>
@@ -176,14 +171,6 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: '#1A1A1A',
     borderRadius: 2,
-  },
-  albumBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: '#EEEBE6',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   restartBtn: {
     width: 38,

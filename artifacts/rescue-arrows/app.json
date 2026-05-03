@@ -3,7 +3,6 @@
     "name": "Rescue Arrows",
     "slug": "rescue-arrows",
     "version": "1.0.0",
-    "assetBundlePatterns": ["**/*"],
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "rescue-arrows",

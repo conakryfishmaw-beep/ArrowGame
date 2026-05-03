@@ -1,7 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { LEVELS, Level, CellPos } from '@/data/levels';
-import { Character, getCharacterForLevel, getUnlockedIndices } from '@/data/characters';
 
 export type { CellPos };
 
@@ -9,14 +8,14 @@ const STORAGE_KEY = '@rescue_arrows_progress_v3';
 
 export interface ActiveArrow {
   id: string;
-  path: CellPos[];
-  tailIdx: number;
-  headIdx: number;
-  bodyLen: number;
+  path: CellPos[];     // Full path: initial body + exit extension
+  tailIdx: number;     // Index of tail cell in path (starts at 0)
+  headIdx: number;     // Index of head cell in path (starts at bodyLen - 1)
+  bodyLen: number;     // Fixed body length (headIdx - tailIdx + 1)
   dir: 'up' | 'down' | 'left' | 'right';
   color: string;
   accent: boolean;
-  exiting: boolean;
+  exiting: boolean;    // Head has gone OOB; tail still animating out
 }
 
 interface SlideResult {
@@ -31,9 +30,6 @@ interface GameContextValue {
   arrows: ActiveArrow[];
   isLevelComplete: boolean;
   hintArrowId: string | null;
-  mascotHitTimestamp: number;
-  currentCharacter: Character;
-  unlockedIndices: number[];
   slideArrow: (id: string) => SlideResult;
   removeExitedArrow: (id: string) => void;
   restartLevel: () => void;
@@ -55,10 +51,12 @@ function isInGrid(c: CellPos, gs: number): boolean {
   return c.row >= 0 && c.row < gs && c.col >= 0 && c.col < gs;
 }
 
+// Index of the first OOB cell in an arrow's path
 function firstOOBIndex(path: CellPos[], gs: number): number {
   return path.findIndex(c => !isInGrid(c, gs));
 }
 
+// Current in-grid body cells
 function inGridBody(a: ActiveArrow, gs: number): CellPos[] {
   return a.path.slice(a.tailIdx, a.headIdx + 1).filter(c => isInGrid(c, gs));
 }
@@ -83,18 +81,15 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [arrows, setArrows] = useState<ActiveArrow[]>([]);
   const [isLevelComplete, setIsLevelComplete] = useState(false);
   const [hintArrowId, setHintArrowId] = useState<string | null>(null);
-  const [mascotHitTimestamp, setMascotHitTimestamp] = useState(0);
   const loadedRef = useRef(false);
 
+  // Use a ref so slideArrow can read current state without stale closures
   const arrowsRef = useRef<ActiveArrow[]>([]);
   useEffect(() => { arrowsRef.current = arrows; }, [arrows]);
 
   const level = LEVELS[Math.min(currentLevel - 1, LEVELS.length - 1)];
   const levelRef = useRef(level);
   useEffect(() => { levelRef.current = level; }, [level]);
-
-  const currentLevelRef = useRef(currentLevel);
-  useEffect(() => { currentLevelRef.current = currentLevel; }, [currentLevel]);
 
   useEffect(() => {
     if (loadedRef.current) return;
@@ -125,6 +120,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const slideArrow = useCallback((id: string): SlideResult => {
     const lv = levelRef.current;
     const gs = lv.gridSize;
+
+    // Read current arrows from ref (no stale closure issues)
     const current = arrowsRef.current;
     const arrow = current.find(a => a.id === id);
     if (!arrow || arrow.exiting) return { moved: false, exited: false };
@@ -139,25 +136,22 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
     const oobIdx = firstOOBIndex(arrow.path, gs);
 
+    // Advance head one cell at a time until blocked or OOB
     let maxSteps = 0;
     let exits = false;
 
     for (let s = 1; arrow.headIdx + s < arrow.path.length; s++) {
       const newHead = arrow.path[arrow.headIdx + s];
 
+      // Head goes out of bounds → arrow exits
       if (oobIdx !== -1 && arrow.headIdx + s >= oobIdx) {
         exits = true;
         break;
       }
 
+      // Collision with other arrow or mascot
       const key = `${newHead.row},${newHead.col}`;
-      if (otherCells.has(key) || mascotCells.has(key)) {
-        // If the very first step is blocked by the mascot → trigger danger shake
-        if (s === 1 && mascotCells.has(key)) {
-          setMascotHitTimestamp(Date.now());
-        }
-        break;
-      }
+      if (otherCells.has(key) || mascotCells.has(key)) break;
 
       maxSteps = s;
     }
@@ -167,6 +161,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     setArrows(prev => prev.map(a => {
       if (a.id !== id) return a;
       if (exits) {
+        // Advance tail to firstOOBIdx so entire body slides off
         const finalTailIdx = oobIdx !== -1 ? oobIdx : a.path.length;
         const finalHeadIdx = Math.min(finalTailIdx + a.bodyLen - 1, a.path.length - 1);
         return { ...a, tailIdx: finalTailIdx, headIdx: finalHeadIdx, exiting: true };
@@ -195,13 +190,13 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const nextLevel = useCallback(() => {
-    const next = Math.min(currentLevelRef.current + 1, 100);
+    const next = Math.min(currentLevel + 1, 100);
     setCurrentLevel(next);
     setHighestUnlocked(h => Math.max(h, next));
     setIsLevelComplete(false);
     setHintArrowId(null);
     setArrows(buildArrows(LEVELS[next - 1]));
-  }, []);
+  }, [currentLevel]);
 
   const goToLevel = useCallback((n: number) => {
     if (n < 1 || n > 100) return;
@@ -215,6 +210,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     const lv = levelRef.current;
     const gs = lv.gridSize;
     const current = arrowsRef.current;
+
     const mascotCells = getMascotCells(lv);
     const allInGridCells = new Set<string>(
       current.filter(a => !a.exiting)
@@ -222,12 +218,19 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         .map(c => `${c.row},${c.col}`)
     );
 
+    // Find an arrow that can make at least one step
     const hintable = current.filter(a => !a.exiting).find(arrow => {
       const nextIdx = arrow.headIdx + 1;
       if (nextIdx >= arrow.path.length) return false;
+
       const nextHead = arrow.path[nextIdx];
+      // Head can exit?
       if (!isInGrid(nextHead, gs)) return true;
-      const ownCells = new Set(inGridBody(arrow, gs).map(c => `${c.row},${c.col}`));
+
+      // Not blocked by others?
+      const ownCells = new Set(
+        inGridBody(arrow, gs).map(c => `${c.row},${c.col}`)
+      );
       const others = new Set([...allInGridCells].filter(k => !ownCells.has(k)));
       const key = `${nextHead.row},${nextHead.col}`;
       return !others.has(key) && !mascotCells.has(key);
@@ -242,14 +245,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const clearHint = useCallback(() => setHintArrowId(null), []);
 
-  const currentCharacter = getCharacterForLevel(currentLevel);
-  const unlockedIndices = getUnlockedIndices(highestUnlocked);
-
   return (
     <GameContext.Provider value={{
       currentLevel, highestUnlocked, level, arrows, isLevelComplete,
-      hintArrowId, mascotHitTimestamp, currentCharacter, unlockedIndices,
-      slideArrow, removeExitedArrow, restartLevel, nextLevel, goToLevel, showHint, clearHint,
+      hintArrowId, slideArrow, removeExitedArrow, restartLevel, nextLevel, goToLevel, showHint, clearHint,
     }}>
       {children}
     </GameContext.Provider>
