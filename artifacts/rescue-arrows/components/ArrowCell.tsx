@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Platform, Pressable, StyleSheet, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useGame } from '@/context/GameContext';
 
 interface ArrowCellProps {
@@ -14,12 +13,46 @@ interface ArrowCellProps {
   isHint: boolean;
 }
 
-const DIR_ICON: Record<string, 'arrow-up-bold' | 'arrow-down-bold' | 'arrow-left-bold' | 'arrow-right-bold'> = {
-  up: 'arrow-up-bold',
-  down: 'arrow-down-bold',
-  left: 'arrow-left-bold',
-  right: 'arrow-right-bold',
+const DIR_ROTATION: Record<string, string> = {
+  up: '0deg',
+  right: '90deg',
+  down: '180deg',
+  left: '270deg',
 };
+
+function ArrowShape({ size, tint }: { size: number; tint: string }) {
+  const headW = size * 0.52;
+  const headH = size * 0.42;
+  const shaftW = size * 0.30;
+  const shaftH = size * 0.40;
+  const gap = size * 0.01;
+
+  return (
+    <View style={{ alignItems: 'center', justifyContent: 'center', height: size }}>
+      <View
+        style={{
+          width: 0,
+          height: 0,
+          borderLeftWidth: headW / 2,
+          borderRightWidth: headW / 2,
+          borderBottomWidth: headH,
+          borderLeftColor: 'transparent',
+          borderRightColor: 'transparent',
+          borderBottomColor: tint,
+          marginBottom: gap,
+        }}
+      />
+      <View
+        style={{
+          width: shaftW,
+          height: shaftH,
+          backgroundColor: tint,
+          borderRadius: shaftW * 0.3,
+        }}
+      />
+    </View>
+  );
+}
 
 export function ArrowCell({ id, row, col, dir, color, cellSize, isHint }: ArrowCellProps) {
   const { slideArrow } = useGame();
@@ -34,18 +67,18 @@ export function ArrowCell({ id, row, col, dir, color, cellSize, isHint }: ArrowC
       Animated.spring(translateX, {
         toValue: col * cellSize,
         useNativeDriver: true,
-        tension: 180,
-        friction: 9,
+        tension: 200,
+        friction: 10,
       }),
       Animated.spring(translateY, {
         toValue: row * cellSize,
         useNativeDriver: true,
-        tension: 180,
-        friction: 9,
+        tension: 200,
+        friction: 10,
       }),
       Animated.sequence([
-        Animated.timing(slideScale, { toValue: 1.18, duration: 80, useNativeDriver: true }),
-        Animated.timing(slideScale, { toValue: 1, duration: 180, useNativeDriver: true }),
+        Animated.timing(slideScale, { toValue: 1.2, duration: 70, useNativeDriver: true }),
+        Animated.timing(slideScale, { toValue: 1, duration: 200, useNativeDriver: true }),
       ]),
     ]).start();
   }, [row, col, cellSize]);
@@ -54,8 +87,8 @@ export function ArrowCell({ id, row, col, dir, color, cellSize, isHint }: ArrowC
     if (isHint) {
       const loop = Animated.loop(
         Animated.sequence([
-          Animated.timing(hintAnim, { toValue: 1.25, duration: 320, useNativeDriver: true }),
-          Animated.timing(hintAnim, { toValue: 0.9, duration: 320, useNativeDriver: true }),
+          Animated.timing(hintAnim, { toValue: 1.22, duration: 300, useNativeDriver: true }),
+          Animated.timing(hintAnim, { toValue: 0.88, duration: 300, useNativeDriver: true }),
         ]),
         { iterations: 5 }
       );
@@ -68,9 +101,9 @@ export function ArrowCell({ id, row, col, dir, color, cellSize, isHint }: ArrowC
 
   const handlePress = async () => {
     Animated.sequence([
-      Animated.timing(pressScale, { toValue: 0.8, duration: 60, useNativeDriver: true }),
-      Animated.timing(pressScale, { toValue: 1.05, duration: 80, useNativeDriver: true }),
-      Animated.timing(pressScale, { toValue: 1, duration: 60, useNativeDriver: true }),
+      Animated.timing(pressScale, { toValue: 0.78, duration: 55, useNativeDriver: true }),
+      Animated.timing(pressScale, { toValue: 1.08, duration: 90, useNativeDriver: true }),
+      Animated.timing(pressScale, { toValue: 1, duration: 55, useNativeDriver: true }),
     ]).start();
 
     const result = slideArrow(id);
@@ -86,16 +119,15 @@ export function ArrowCell({ id, row, col, dir, color, cellSize, isHint }: ArrowC
     }
   };
 
-  const tileSize = cellSize * 0.84;
-  const radius = tileSize * 0.24;
-  const iconSize = tileSize * 0.58;
-
+  const tileSize = cellSize * 0.83;
+  const radius = tileSize * 0.22;
+  const arrowSize = tileSize * 0.70;
   const combinedScale = Animated.multiply(Animated.multiply(pressScale, hintAnim), slideScale);
 
   return (
     <Animated.View
       style={[
-        styles.arrowContainer,
+        styles.container,
         {
           width: cellSize,
           height: cellSize,
@@ -116,18 +148,16 @@ export function ArrowCell({ id, row, col, dir, color, cellSize, isHint }: ArrowC
               },
               isHint && {
                 shadowColor: '#FFFFFF',
-                shadowOpacity: 0.9,
-                shadowRadius: 12,
+                shadowOpacity: 0.95,
+                shadowRadius: 14,
                 shadowOffset: { width: 0, height: 0 },
-                elevation: 12,
+                elevation: 16,
               },
             ]}
           >
-            <MaterialCommunityIcons
-              name={DIR_ICON[dir]}
-              size={iconSize}
-              color="rgba(0,0,0,0.75)"
-            />
+            <View style={{ transform: [{ rotate: DIR_ROTATION[dir] }] }}>
+              <ArrowShape size={arrowSize} tint="rgba(0,0,0,0.72)" />
+            </View>
           </View>
         </Animated.View>
       </Pressable>
@@ -136,7 +166,7 @@ export function ArrowCell({ id, row, col, dir, color, cellSize, isHint }: ArrowC
 }
 
 const styles = StyleSheet.create({
-  arrowContainer: {
+  container: {
     position: 'absolute',
     top: 0,
     left: 0,
