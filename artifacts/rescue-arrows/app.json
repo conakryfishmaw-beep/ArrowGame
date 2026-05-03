@@ -6,18 +6,26 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "rescue-arrows",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#000000"
+      "backgroundColor": "#F8F5F0"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.conakryfishmaw.rescuearrows",
+      "buildNumber": "1"
     },
     "android": {
-      "backgroundColor": "#000000"
+      "package": "com.conakryfishmaw.rescuearrows",
+      "versionCode": 1,
+      "backgroundColor": "#F8F5F0",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#F8F5F0"
+      }
     },
     "web": {
       "favicon": "./assets/images/icon.png"
@@ -35,6 +43,11 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": ""
+      }
     }
   }
 }
