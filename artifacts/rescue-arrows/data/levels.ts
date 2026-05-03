@@ -33,109 +33,229 @@ const QUEEN_RAINBOW = '#FFD700';
 export const LEVELS: Level[] = [
   // ─────────────────────────────────────────────
   // LEVELS 1-10: Forest Animals | 5×5 | 1×1 mascot at (2,2)
+  // Rules: never point an arrow toward mascot (2,2) from same row/col when mascot blocks exit.
+  // Safe: (r,2) UP only r=0,1 | (r,2) DOWN only r=3,4 | (2,c) RIGHT only c=3,4 | (2,c) LEFT only c=0,1
   // ─────────────────────────────────────────────
   {
+    // 5 arrows. Chain: (0,3)right exits → (0,1)right unblocked → exits.
     id: 1, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
     character: 'rabbit', characterColor: RABBIT_COLOR,
-    arrows: [{row:0,col:2,dir:'up'},{row:4,col:2,dir:'down'},{row:2,col:0,dir:'left'}],
+    arrows: [
+      {row:0,col:0,dir:'up'},{row:4,col:0,dir:'down'},{row:4,col:4,dir:'down'},
+      {row:0,col:3,dir:'right'},{row:0,col:1,dir:'right'},
+    ],
   },
   {
+    // 6 arrows. 2 chains: (0,3)R→(0,1)R and (4,1)L→(4,3)L
     id: 2, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
     character: 'rabbit', characterColor: RABBIT_COLOR,
-    arrows: [{row:0,col:2,dir:'up'},{row:4,col:2,dir:'down'},{row:2,col:0,dir:'left'},{row:2,col:4,dir:'right'}],
+    arrows: [
+      {row:0,col:0,dir:'up'},{row:4,col:4,dir:'down'},
+      {row:0,col:3,dir:'right'},{row:0,col:1,dir:'right'},
+      {row:4,col:1,dir:'left'},{row:4,col:3,dir:'left'},
+    ],
   },
   {
+    // 6 arrows. 2 vertical chains: (4,0)D→(2,0)D and (0,4)U→(2,4)U
     id: 3, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
     character: 'rabbit', characterColor: RABBIT_COLOR,
-    arrows: [{row:0,col:0,dir:'up'},{row:0,col:4,dir:'up'},{row:4,col:0,dir:'down'},{row:4,col:4,dir:'down'}],
+    arrows: [
+      {row:0,col:0,dir:'up'},{row:4,col:4,dir:'down'},
+      {row:4,col:0,dir:'down'},{row:2,col:0,dir:'down'},
+      {row:0,col:4,dir:'up'},{row:2,col:4,dir:'up'},
+    ],
   },
   {
+    // 7 arrows. 3-step H chain: (0,4)U → (0,2)R → (0,0)R
     id: 4, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
     character: 'rabbit', characterColor: RABBIT_COLOR,
-    arrows: [{row:0,col:1,dir:'up'},{row:0,col:3,dir:'up'},{row:4,col:1,dir:'down'},{row:4,col:3,dir:'down'},{row:2,col:0,dir:'left'}],
+    arrows: [
+      {row:4,col:0,dir:'down'},{row:4,col:4,dir:'down'},{row:4,col:2,dir:'down'},
+      {row:0,col:4,dir:'up'},{row:0,col:2,dir:'right'},{row:0,col:0,dir:'right'},
+      {row:2,col:4,dir:'right'},
+    ],
   },
   {
+    // 7 arrows. Row chain + independent
     id: 5, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
     character: 'rabbit', characterColor: RABBIT_COLOR,
-    arrows: [{row:0,col:0,dir:'up'},{row:0,col:4,dir:'up'},{row:4,col:0,dir:'down'},{row:4,col:4,dir:'down'},{row:2,col:4,dir:'right'}],
+    arrows: [
+      {row:0,col:0,dir:'up'},{row:4,col:0,dir:'down'},{row:4,col:4,dir:'down'},{row:2,col:0,dir:'left'},
+      {row:3,col:3,dir:'right'},{row:3,col:1,dir:'right'},
+      {row:0,col:4,dir:'up'},
+    ],
   },
   {
+    // 7 arrows. Cross chains H+V
     id: 6, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
     character: 'cat', characterColor: CAT_COLOR,
-    arrows: [{row:1,col:0,dir:'left'},{row:1,col:4,dir:'right'},{row:3,col:0,dir:'left'},{row:3,col:4,dir:'right'},{row:0,col:2,dir:'up'}],
+    arrows: [
+      {row:0,col:0,dir:'up'},{row:4,col:4,dir:'down'},
+      {row:1,col:3,dir:'right'},{row:1,col:0,dir:'right'},
+      {row:3,col:1,dir:'left'},{row:3,col:4,dir:'left'},
+      {row:4,col:2,dir:'down'},
+    ],
   },
   {
+    // 8 arrows. 3 chains + independent
     id: 7, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
     character: 'cat', characterColor: CAT_COLOR,
-    arrows: [{row:0,col:0,dir:'up'},{row:0,col:2,dir:'up'},{row:0,col:4,dir:'up'},{row:4,col:0,dir:'down'},{row:4,col:2,dir:'down'},{row:4,col:4,dir:'down'}],
+    arrows: [
+      {row:4,col:0,dir:'down'},{row:4,col:4,dir:'down'},{row:4,col:2,dir:'down'},
+      {row:1,col:3,dir:'up'},{row:1,col:0,dir:'right'},
+      {row:0,col:3,dir:'right'},{row:0,col:0,dir:'right'},
+      {row:3,col:0,dir:'left'},
+    ],
   },
   {
+    // 8 arrows. Vertical + horizontal chains interleaved
     id: 8, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
     character: 'cat', characterColor: CAT_COLOR,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:3,dir:'right'},{row:2,col:0,dir:'left'},{row:4,col:0,dir:'down'},{row:1,col:4,dir:'up'},{row:3,col:4,dir:'down'}],
+    arrows: [
+      {row:0,col:4,dir:'up'},{row:0,col:0,dir:'right'},
+      {row:4,col:1,dir:'down'},{row:4,col:3,dir:'left'},
+      {row:3,col:4,dir:'right'},{row:1,col:4,dir:'down'},
+      {row:0,col:3,dir:'up'},{row:4,col:0,dir:'down'},
+    ],
   },
   {
+    // 9 arrows. 3 chains + extras
     id: 9, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
     character: 'cat', characterColor: CAT_COLOR,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:2,dir:'right'},{row:4,col:4,dir:'left'},{row:4,col:1,dir:'left'},{row:2,col:0,dir:'left'},{row:2,col:4,dir:'right'}],
+    arrows: [
+      {row:0,col:0,dir:'up'},{row:4,col:4,dir:'down'},{row:0,col:4,dir:'up'},
+      {row:0,col:3,dir:'right'},{row:0,col:1,dir:'right'},
+      {row:4,col:1,dir:'left'},{row:4,col:3,dir:'left'},
+      {row:4,col:2,dir:'down'},{row:3,col:2,dir:'down'},
+    ],
   },
   {
+    // 9 arrows. 3-step chain + 2 short chains
     id: 10, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
     character: 'cat', characterColor: CAT_COLOR,
-    arrows: [{row:0,col:1,dir:'up'},{row:0,col:2,dir:'up'},{row:0,col:3,dir:'up'},{row:4,col:1,dir:'down'},{row:4,col:2,dir:'down'},{row:4,col:3,dir:'down'},{row:2,col:4,dir:'right'}],
+    arrows: [
+      {row:0,col:0,dir:'up'},{row:4,col:4,dir:'down'},{row:4,col:0,dir:'down'},
+      {row:3,col:0,dir:'left'},{row:3,col:4,dir:'right'},
+      {row:1,col:4,dir:'up'},{row:1,col:2,dir:'right'},{row:1,col:0,dir:'right'},
+      {row:4,col:2,dir:'down'},
+    ],
   },
   // ─────────────────────────────────────────────
-  // LEVELS 11-20: Forest Animals | 5×5 | more arrows + chains
+  // LEVELS 11-20: Forest Animals | 5×5 | harder chains (9-11 arrows)
   // ─────────────────────────────────────────────
   {
+    // 9 arrows. 2 H-chains + 2 V-chains
     id: 11, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
     character: 'teddy-bear', characterColor: BEAR_COLOR,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:3,dir:'right'},{row:2,col:0,dir:'left'},{row:2,col:4,dir:'right'},{row:4,col:0,dir:'down'},{row:4,col:4,dir:'down'}],
+    arrows: [
+      {row:0,col:0,dir:'up'},{row:4,col:4,dir:'down'},{row:0,col:2,dir:'up'},
+      {row:1,col:3,dir:'right'},{row:1,col:1,dir:'right'},
+      {row:3,col:1,dir:'left'},{row:3,col:3,dir:'left'},
+      {row:4,col:2,dir:'down'},{row:3,col:2,dir:'down'},
+    ],
   },
   {
+    // 9 arrows. 3-step column chain R + short chains
     id: 12, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
     character: 'teddy-bear', characterColor: BEAR_COLOR,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:2,dir:'right'},{row:4,col:4,dir:'left'},{row:4,col:2,dir:'left'},{row:0,col:4,dir:'up'},{row:4,col:0,dir:'down'},{row:2,col:0,dir:'left'}],
+    arrows: [
+      {row:4,col:4,dir:'down'},{row:4,col:0,dir:'down'},{row:1,col:0,dir:'down'},
+      {row:0,col:4,dir:'up'},{row:0,col:2,dir:'right'},{row:0,col:0,dir:'right'},
+      {row:3,col:4,dir:'right'},{row:1,col:4,dir:'down'},
+      {row:3,col:0,dir:'left'},
+    ],
   },
   {
+    // 10 arrows. 3-step column chain L + 3-step H chain + extras
     id: 13, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
     character: 'teddy-bear', characterColor: BEAR_COLOR,
-    arrows: [{row:0,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:4,dir:'down'},{row:2,col:4,dir:'down'},{row:4,col:2,dir:'down'},{row:0,col:2,dir:'up'},{row:3,col:0,dir:'left'}],
+    arrows: [
+      {row:0,col:4,dir:'up'},{row:0,col:2,dir:'right'},{row:0,col:0,dir:'right'},
+      {row:4,col:3,dir:'down'},{row:4,col:4,dir:'left'},
+      {row:4,col:0,dir:'down'},{row:3,col:0,dir:'left'},{row:1,col:0,dir:'down'},
+      {row:1,col:4,dir:'up'},{row:3,col:4,dir:'right'},
+    ],
   },
   {
+    // 10 arrows. 3-step col chain each side
     id: 14, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
     character: 'teddy-bear', characterColor: BEAR_COLOR,
-    arrows: [{row:0,col:1,dir:'up'},{row:0,col:3,dir:'up'},{row:1,col:0,dir:'left'},{row:3,col:0,dir:'left'},{row:1,col:4,dir:'right'},{row:3,col:4,dir:'right'},{row:4,col:2,dir:'down'}],
+    arrows: [
+      {row:4,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:0,dir:'down'},
+      {row:0,col:4,dir:'up'},{row:2,col:4,dir:'up'},{row:4,col:4,dir:'up'},
+      {row:0,col:3,dir:'right'},{row:0,col:1,dir:'right'},
+      {row:4,col:1,dir:'left'},{row:4,col:3,dir:'left'},
+    ],
   },
   {
+    // 10 arrows. Cross: (1,3)U unlocks (1,0)R; (3,1)D unlocks (3,4)L; + col chains
     id: 15, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
     character: 'teddy-bear', characterColor: BEAR_COLOR,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:2,dir:'right'},{row:0,col:4,dir:'up'},{row:4,col:0,dir:'down'},{row:4,col:2,dir:'left'},{row:4,col:4,dir:'left'},{row:2,col:0,dir:'left'},{row:2,col:4,dir:'right'}],
+    arrows: [
+      {row:0,col:0,dir:'up'},{row:4,col:4,dir:'down'},{row:4,col:0,dir:'down'},{row:0,col:4,dir:'up'},
+      {row:1,col:3,dir:'up'},{row:1,col:0,dir:'right'},
+      {row:3,col:1,dir:'down'},{row:3,col:4,dir:'left'},
+      {row:0,col:2,dir:'up'},{row:4,col:2,dir:'down'},
+    ],
   },
   {
+    // 10 arrows. FIX for old level 16 deadlock. 3-step col chain + 2 H-chains
     id: 16, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
     character: 'teddy-bear', characterColor: BEAR_COLOR,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:3,dir:'right'},{row:1,col:0,dir:'down'},{row:3,col:0,dir:'up'},{row:4,col:4,dir:'left'},{row:4,col:1,dir:'left'},{row:0,col:4,dir:'up'},{row:4,col:2,dir:'down'}],
+    arrows: [
+      {row:4,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:0,dir:'down'},
+      {row:0,col:4,dir:'up'},{row:4,col:4,dir:'down'},
+      {row:0,col:3,dir:'right'},{row:0,col:1,dir:'right'},
+      {row:4,col:1,dir:'left'},{row:4,col:3,dir:'left'},
+      {row:3,col:4,dir:'right'},
+    ],
   },
   {
+    // 10 arrows. Dual col-chains + row-chain
     id: 17, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
     character: 'teddy-bear', characterColor: BEAR_COLOR,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:2,dir:'right'},{row:4,col:4,dir:'left'},{row:4,col:2,dir:'left'},{row:1,col:4,dir:'up'},{row:3,col:4,dir:'down'},{row:0,col:4,dir:'up'},{row:4,col:0,dir:'down'}],
+    arrows: [
+      {row:4,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:0,dir:'down'},
+      {row:0,col:4,dir:'up'},{row:2,col:4,dir:'up'},{row:4,col:4,dir:'up'},
+      {row:1,col:2,dir:'up'},{row:3,col:2,dir:'down'},
+      {row:1,col:3,dir:'right'},{row:3,col:1,dir:'left'},
+    ],
   },
   {
+    // 10 arrows. Mixed directions, 2 interleaved chains
     id: 18, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
     character: 'teddy-bear', characterColor: BEAR_COLOR,
-    arrows: [{row:0,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:4,dir:'down'},{row:2,col:4,dir:'down'},{row:1,col:0,dir:'left'},{row:3,col:0,dir:'left'},{row:0,col:2,dir:'up'},{row:4,col:2,dir:'down'}],
+    arrows: [
+      {row:0,col:0,dir:'up'},{row:4,col:4,dir:'down'},
+      {row:0,col:3,dir:'up'},{row:0,col:1,dir:'right'},
+      {row:4,col:1,dir:'down'},{row:4,col:3,dir:'left'},
+      {row:3,col:4,dir:'right'},{row:1,col:4,dir:'down'},
+      {row:0,col:4,dir:'up'},{row:4,col:0,dir:'down'},
+    ],
   },
   {
+    // 11 arrows. Two 3-step col-chains + 2 H-chains + extra
     id: 19, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
     character: 'teddy-bear', characterColor: BEAR_COLOR,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:2,dir:'right'},{row:0,col:4,dir:'up'},{row:4,col:4,dir:'left'},{row:4,col:2,dir:'left'},{row:4,col:0,dir:'down'},{row:2,col:4,dir:'right'},{row:2,col:0,dir:'left'},{row:1,col:4,dir:'up'}],
+    arrows: [
+      {row:4,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:0,dir:'down'},
+      {row:0,col:4,dir:'up'},{row:2,col:4,dir:'up'},{row:4,col:4,dir:'up'},
+      {row:1,col:3,dir:'right'},{row:1,col:1,dir:'right'},
+      {row:3,col:1,dir:'left'},{row:3,col:3,dir:'left'},
+      {row:0,col:2,dir:'up'},
+    ],
   },
   {
+    // 11 arrows. Hardest 5×5: triple chains + dependencies
     id: 20, gridSize: 5, mascotRow: 2, mascotCol: 2, mascotSize: 1,
     character: 'teddy-bear', characterColor: BEAR_COLOR,
-    arrows: [{row:0,col:0,dir:'right'},{row:0,col:2,dir:'right'},{row:0,col:4,dir:'up'},{row:4,col:4,dir:'left'},{row:4,col:2,dir:'left'},{row:4,col:0,dir:'down'},{row:1,col:4,dir:'up'},{row:3,col:4,dir:'down'},{row:2,col:0,dir:'left'}],
+    arrows: [
+      {row:4,col:0,dir:'down'},{row:2,col:0,dir:'down'},{row:0,col:0,dir:'down'},
+      {row:0,col:4,dir:'up'},{row:2,col:4,dir:'up'},{row:4,col:4,dir:'up'},
+      {row:1,col:2,dir:'up'},{row:3,col:2,dir:'down'},
+      {row:1,col:3,dir:'right'},{row:1,col:1,dir:'right'},
+      {row:3,col:1,dir:'left'},
+    ],
   },
   // ─────────────────────────────────────────────
   // LEVELS 21-35: Chibi Anime | 6×6 | 2×2 mascot at (2,2)
